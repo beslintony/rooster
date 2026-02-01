@@ -85,6 +85,19 @@ function ConnectionsPage() {
           text: language === 'de' ? 'Einladung gesendet!' : 'Invite sent!'
         })
         setInviteInput('')
+        fetchConnections() // Refresh to show pending sent invite
+      } else if (data.error === 'User not found') {
+        setMessage({
+          type: 'info',
+          text: language === 'de'
+            ? `"${inviteInput}" ist noch nicht registriert. Teile ihnen mit, dass sie sich anmelden und deinen Benutzernamen suchen sollen.`
+            : `"${inviteInput}" hasn't joined yet. Ask them to sign up and search for your username.`
+        })
+      } else if (data.error === 'Connection already exists') {
+        setMessage({
+          type: 'info',
+          text: language === 'de' ? 'Ihr seid bereits verbunden!' : 'You are already connected!'
+        })
       } else {
         setMessage({ type: 'error', text: data.error })
       }
@@ -266,7 +279,7 @@ function ConnectionsPage() {
       </div>
 
       <style>{`
-        .connections-page { max-width: 800px; margin: 0 auto; }
+        .connections-page { max-width: 1000px; margin: 0 auto; padding: 0 var(--space-md); }
         .page-header { margin-bottom: var(--space-xl); }
         .page-header h1 { font-size: 1.5rem; margin-bottom: var(--space-xs); }
         .page-header p { color: var(--text-secondary); }
@@ -292,6 +305,10 @@ function ConnectionsPage() {
         .message.error {
           background: rgba(239, 68, 68, 0.1);
           color: #ef4444;
+        }
+        .message.info {
+          background: rgba(59, 130, 246, 0.1);
+          color: #3b82f6;
         }
         
         .pending-list, .connections-list {

@@ -347,7 +347,7 @@ function TasksPage() {
             )}
 
             <style>{`
-        .tasks-page { max-width: 700px; margin: 0 auto; }
+        .tasks-page { max-width: 1000px; margin: 0 auto; padding: 0 var(--space-md); }
         
         /* Header */
         .tasks-header {

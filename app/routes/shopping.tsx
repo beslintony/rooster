@@ -337,7 +337,7 @@ function ShoppingPage() {
             )}
 
             <style>{`
-        .shopping-page { max-width: 700px; margin: 0 auto; }
+        .shopping-page { max-width: 1000px; margin: 0 auto; padding: 0 var(--space-md); }
         
         /* Header */
         .shopping-header {
