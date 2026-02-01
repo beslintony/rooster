@@ -11,6 +11,13 @@ export const Route = createFileRoute('/calendar')({
 
 type ViewMode = 'month' | 'week'
 
+interface Shift {
+    id: string
+    date: Date
+    type: string
+    userId: string
+}
+
 interface ConnectedUser {
     id: string
     username: string
@@ -19,20 +26,25 @@ interface ConnectedUser {
     color: string
 }
 
-// User colors for calendar merge
 const USER_COLORS = [
     '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6', '#f97316'
 ]
 
 function CalendarPage() {
     const { t, language } = useI18n()
-    const { isAuthenticated } = useAuth()
+    const { user, isAuthenticated } = useAuth()
     const [currentDate, setCurrentDate] = useState(new Date())
     const [viewMode, setViewMode] = useState<ViewMode>('month')
     const [selectedState, setSelectedState] = useState<GermanState>('NW')
-    const [showMergePanel, setShowMergePanel] = useState(false)
+    const [showTeamPanel, setShowTeamPanel] = useState(false)
     const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([])
     const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set(['me']))
+
+    // Shift creation state
+    const [showShiftModal, setShowShiftModal] = useState(false)
+    const [selectedDay, setSelectedDay] = useState<number | null>(null)
+    const [selectedShiftType, setSelectedShiftType] = useState('')
+    const [shifts, setShifts] = useState<Shift[]>([])
 
     const DAYS = getDays(language)
     const MONTHS = getMonths(language)
@@ -45,7 +57,6 @@ function CalendarPage() {
     const startOffset = firstDay.getDay()
     const daysInMonth = lastDay.getDate()
 
-    // Get holidays for this month
     const holidays = getHolidaysForMonth(year, month, selectedState)
     const holidayMap = new Map(holidays.map(h => [h.date.getDate(), h]))
 
@@ -65,7 +76,6 @@ function CalendarPage() {
     const isToday = (day: number) =>
         day === today.getDate() && month === today.getMonth() && year === today.getFullYear()
 
-    // Fetch connected users for merge view
     useEffect(() => {
         if (isAuthenticated) {
             fetchConnectedUsers()
@@ -78,11 +88,8 @@ function CalendarPage() {
             if (res.ok) {
                 const data = await res.json()
                 const users = data.connections.map((conn: any, idx: number) => {
-                    const user = conn.sender.id === 'me' ? conn.receiver : conn.sender
-                    return {
-                        ...user,
-                        color: USER_COLORS[idx % USER_COLORS.length]
-                    }
+                    const u = conn.sender.id === user?.id ? conn.receiver : conn.sender
+                    return { ...u, color: USER_COLORS[idx % USER_COLORS.length] }
                 })
                 setConnectedUsers(users)
             }
@@ -101,7 +108,38 @@ function CalendarPage() {
         setSelectedUsers(newSelected)
     }
 
-    // Shift type translations
+    const openShiftModal = (day: number) => {
+        setSelectedDay(day)
+        setSelectedShiftType('')
+        setShowShiftModal(true)
+    }
+
+    const addShift = () => {
+        if (!selectedDay || !selectedShiftType) return
+
+        const newShift: Shift = {
+            id: Date.now().toString(),
+            date: new Date(year, month, selectedDay),
+            type: selectedShiftType,
+            userId: 'me',
+        }
+        setShifts([...shifts, newShift])
+        setShowShiftModal(false)
+        setSelectedDay(null)
+    }
+
+    const getShiftsForDay = (day: number) => {
+        return shifts.filter(s =>
+            s.date.getFullYear() === year &&
+            s.date.getMonth() === month &&
+            s.date.getDate() === day
+        )
+    }
+
+    const deleteShift = (shiftId: string) => {
+        setShifts(shifts.filter(s => s.id !== shiftId))
+    }
+
     const shiftTranslations: Record<string, string> = {
         FRUEH: t('shift.frueh'),
         SPAET: t('shift.spaet'),
@@ -149,24 +187,28 @@ function CalendarPage() {
                     </div>
                     {isAuthenticated && (
                         <button
-                            onClick={() => setShowMergePanel(!showMergePanel)}
-                            className={`btn ${showMergePanel ? 'btn-primary' : 'btn-secondary'}`}
-                            title={language === 'de' ? 'Kalender zusammenführen' : 'Merge Calendars'}
+                            onClick={() => setShowTeamPanel(!showTeamPanel)}
+                            className={`btn ${showTeamPanel ? 'btn-primary' : 'btn-ghost'}`}
+                            title={language === 'de' ? 'Teamkalender anzeigen' : 'Show Team Calendar'}
                         >
-                            👥 {language === 'de' ? 'Merge' : 'Merge'}
+                            👥 {language === 'de' ? 'Team' : 'Team'}
                         </button>
                     )}
-                    <button className="btn btn-primary">{t('calendar.addShift')}</button>
                 </div>
             </div>
 
             <div className="calendar-layout">
-                {/* Merge Panel */}
-                {showMergePanel && (
-                    <div className="merge-panel card">
-                        <h3>{language === 'de' ? 'Kalender anzeigen' : 'Show Calendars'}</h3>
-                        <div className="merge-users">
-                            <label className="merge-user">
+                {/* Team Panel */}
+                {showTeamPanel && (
+                    <div className="team-panel card">
+                        <h3>👥 {language === 'de' ? 'Team-Kalender' : 'Team Calendar'}</h3>
+                        <p className="team-hint">
+                            {language === 'de'
+                                ? 'Wähle, wessen Kalender angezeigt werden soll:'
+                                : 'Choose whose calendars to display:'}
+                        </p>
+                        <div className="team-users">
+                            <label className="team-user">
                                 <input
                                     type="checkbox"
                                     checked={selectedUsers.has('me')}
@@ -176,23 +218,24 @@ function CalendarPage() {
                                 <span>{language === 'de' ? 'Mein Kalender' : 'My Calendar'}</span>
                             </label>
                             {connectedUsers.length > 0 ? (
-                                connectedUsers.map(user => (
-                                    <label key={user.id} className="merge-user">
+                                connectedUsers.map(u => (
+                                    <label key={u.id} className="team-user">
                                         <input
                                             type="checkbox"
-                                            checked={selectedUsers.has(user.id)}
-                                            onChange={() => toggleUser(user.id)}
+                                            checked={selectedUsers.has(u.id)}
+                                            onChange={() => toggleUser(u.id)}
                                         />
-                                        <span className="user-dot" style={{ background: user.color }} />
-                                        <span>{user.displayName || user.username}</span>
+                                        <span className="user-dot" style={{ background: u.color }} />
+                                        <span>{u.displayName || u.username}</span>
                                     </label>
                                 ))
                             ) : (
-                                <p className="no-connections">
-                                    <Link to="/connections">
-                                        {language === 'de' ? '+ Freunde einladen' : '+ Invite friends'}
+                                <div className="no-team">
+                                    <p>{language === 'de' ? 'Keine Teammitglieder' : 'No team members'}</p>
+                                    <Link to="/connections" className="btn btn-secondary btn-sm">
+                                        {language === 'de' ? '+ Einladen' : '+ Invite'}
                                     </Link>
-                                </p>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -206,21 +249,35 @@ function CalendarPage() {
                             ))}
                             {calendarDays.map((day, idx) => {
                                 const holiday = day ? holidayMap.get(day) : null
+                                const dayShifts = day ? getShiftsForDay(day) : []
                                 return (
                                     <div
                                         key={idx}
                                         className={`calendar-day ${day ? 'has-day' : 'empty'} ${day && isToday(day) ? 'today' : ''} ${holiday ? 'is-holiday' : ''}`}
+                                        onClick={() => day && openShiftModal(day)}
                                     >
                                         {day && (
                                             <>
                                                 <span className="day-number">{day}</span>
                                                 {holiday && (
                                                     <span className="holiday-badge" title={holiday.name}>
-                                                        {holiday.name.substring(0, 10)}...
+                                                        🎉 {holiday.name.substring(0, 8)}
                                                     </span>
                                                 )}
-                                                <div className="day-events">
-                                                    {/* Events will be rendered here with user colors */}
+                                                <div className="day-shifts">
+                                                    {dayShifts.map(shift => {
+                                                        const shiftInfo = SHIFT_TYPES[shift.type]
+                                                        return (
+                                                            <div
+                                                                key={shift.id}
+                                                                className={`shift-chip ${shiftInfo?.cssClass || ''}`}
+                                                                onClick={(e) => { e.stopPropagation(); deleteShift(shift.id) }}
+                                                                title={language === 'de' ? 'Klicken zum Löschen' : 'Click to delete'}
+                                                            >
+                                                                {shiftInfo?.shortName || shift.type}
+                                                            </div>
+                                                        )
+                                                    })}
                                                 </div>
                                             </>
                                         )}
@@ -236,7 +293,6 @@ function CalendarPage() {
                             {Object.values(SHIFT_TYPES).map(shift => (
                                 <span key={shift.id} className={`shift-badge ${shift.cssClass}`}>
                                     {shift.shortName} - {shiftTranslations[shift.id] || shift.name}
-                                    {shift.duration > 0 && ` (${shift.duration}h)`}
                                 </span>
                             ))}
                         </div>
@@ -244,144 +300,141 @@ function CalendarPage() {
                 </div>
             </div>
 
+            {/* Shift Creation Modal */}
+            {showShiftModal && (
+                <div className="modal-overlay" onClick={() => setShowShiftModal(false)}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>
+                            {language === 'de' ? 'Schicht hinzufügen' : 'Add Shift'}
+                            <span className="modal-date">
+                                {selectedDay}. {MONTHS[month]} {year}
+                            </span>
+                        </h3>
+                        <div className="shift-options">
+                            {Object.values(SHIFT_TYPES).map(shift => (
+                                <button
+                                    key={shift.id}
+                                    onClick={() => setSelectedShiftType(shift.id)}
+                                    className={`shift-option ${shift.cssClass} ${selectedShiftType === shift.id ? 'selected' : ''}`}
+                                >
+                                    <span className="shift-short">{shift.shortName}</span>
+                                    <span className="shift-name">{shiftTranslations[shift.id] || shift.name}</span>
+                                    {shift.duration > 0 && <span className="shift-duration">{shift.duration}h</span>}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="modal-actions">
+                            <button className="btn btn-ghost" onClick={() => setShowShiftModal(false)}>
+                                {language === 'de' ? 'Abbrechen' : 'Cancel'}
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={addShift}
+                                disabled={!selectedShiftType}
+                            >
+                                {language === 'de' ? 'Hinzufügen' : 'Add'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style>{`
         .calendar-page { max-width: 1200px; margin: 0 auto; }
         .calendar-header { 
-          display: flex; 
-          justify-content: space-between; 
-          align-items: center;
-          flex-wrap: wrap;
-          gap: var(--space-md);
-          margin-bottom: var(--space-lg);
+          display: flex; justify-content: space-between; align-items: center;
+          flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-lg);
         }
-        .calendar-nav { 
-          display: flex; 
-          align-items: center; 
-          gap: var(--space-md); 
-        }
-        .calendar-nav h1 { 
-          font-size: 1.5rem; 
-          font-weight: 600;
-          min-width: 200px;
-          text-align: center;
-        }
-        .calendar-actions { 
-          display: flex; 
-          gap: var(--space-sm); 
-          align-items: center;
-          flex-wrap: wrap;
-        }
-        .state-select {
-          width: auto;
-          min-width: 180px;
-        }
-        .view-toggle { 
-          display: flex; 
-          background: var(--bg-tertiary);
-          border-radius: var(--radius-md);
-          padding: 2px;
-        }
+        .calendar-nav { display: flex; align-items: center; gap: var(--space-md); }
+        .calendar-nav h1 { font-size: 1.5rem; font-weight: 600; min-width: 200px; text-align: center; }
+        .calendar-actions { display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap; }
+        .state-select { width: auto; min-width: 180px; }
+        .view-toggle { display: flex; background: var(--bg-tertiary); border-radius: var(--radius-md); padding: 2px; }
         
-        .calendar-layout {
-          display: flex;
-          gap: var(--space-lg);
-        }
+        .calendar-layout { display: flex; gap: var(--space-lg); }
         
-        .merge-panel {
-          width: 220px;
-          flex-shrink: 0;
-          padding: var(--space-md);
-          height: fit-content;
-        }
-        .merge-panel h3 {
-          font-size: 0.875rem;
-          margin-bottom: var(--space-md);
-          color: var(--text-secondary);
-        }
-        .merge-users {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-sm);
-        }
-        .merge-user {
-          display: flex;
-          align-items: center;
-          gap: var(--space-sm);
-          font-size: 0.875rem;
-          cursor: pointer;
-        }
-        .merge-user input { width: 16px; height: 16px; }
-        .user-dot {
-          width: 12px;
-          height: 12px;
-          border-radius: var(--radius-full);
-        }
-        .no-connections {
-          font-size: 0.75rem;
-          color: var(--text-muted);
-        }
-        .no-connections a {
-          color: var(--accent-primary);
-        }
+        .team-panel { width: 240px; flex-shrink: 0; padding: var(--space-md); height: fit-content; }
+        .team-panel h3 { font-size: 0.875rem; margin-bottom: var(--space-xs); }
+        .team-hint { font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-md); }
+        .team-users { display: flex; flex-direction: column; gap: var(--space-sm); }
+        .team-user { display: flex; align-items: center; gap: var(--space-sm); font-size: 0.875rem; cursor: pointer; }
+        .team-user input { width: 16px; height: 16px; }
+        .user-dot { width: 12px; height: 12px; border-radius: var(--radius-full); }
+        .no-team { text-align: center; padding: var(--space-md) 0; }
+        .no-team p { font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-sm); }
         
         .calendar-main { flex: 1; min-width: 0; }
         
         .calendar-grid {
-          display: grid;
-          grid-template-columns: repeat(7, 1fr);
-          gap: 1px;
-          background: var(--bg-tertiary);
-          border-radius: var(--radius-md);
-          overflow: hidden;
+          display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px;
+          background: var(--bg-tertiary); border-radius: var(--radius-md); overflow: hidden;
         }
         .calendar-day-header {
-          padding: var(--space-sm);
-          text-align: center;
-          font-weight: 600;
-          font-size: 0.75rem;
-          text-transform: uppercase;
-          color: var(--text-secondary);
+          padding: var(--space-sm); text-align: center; font-weight: 600;
+          font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary);
           background: var(--bg-secondary);
         }
         .calendar-day {
-          min-height: 100px;
-          padding: var(--space-sm);
-          background: var(--bg-secondary);
+          min-height: 100px; padding: var(--space-xs);
+          background: var(--bg-secondary); cursor: pointer;
           transition: background var(--transition-fast);
         }
-        .calendar-day.empty { background: var(--bg-primary); }
-        .calendar-day.has-day:hover { background: var(--bg-tertiary); cursor: pointer; }
-        .calendar-day.today { 
-          background: rgba(139, 92, 246, 0.1);
-          border: 2px solid var(--accent-primary);
-        }
+        .calendar-day.empty { background: var(--bg-primary); cursor: default; }
+        .calendar-day.has-day:hover { background: var(--bg-tertiary); }
+        .calendar-day.today { background: rgba(139, 92, 246, 0.1); border: 2px solid var(--accent-primary); }
         .day-number {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 28px;
-          height: 28px;
-          font-weight: 500;
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 24px; height: 24px; font-weight: 500; font-size: 0.875rem;
           border-radius: var(--radius-full);
         }
-        .today .day-number {
-          background: var(--accent-primary);
-          color: white;
+        .today .day-number { background: var(--accent-primary); color: white; }
+        .holiday-badge {
+          display: block; font-size: 0.625rem; color: var(--accent-success);
+          margin-top: var(--space-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-        .day-events { margin-top: var(--space-xs); }
-        .shift-legend { 
-          margin-top: var(--space-lg);
-          padding: var(--space-md);
-          background: var(--bg-secondary);
-          border-radius: var(--radius-lg);
+        .day-shifts { margin-top: var(--space-xs); display: flex; flex-direction: column; gap: 2px; }
+        .shift-chip {
+          padding: 2px 6px; border-radius: var(--radius-sm); font-size: 0.625rem;
+          font-weight: 600; cursor: pointer; transition: opacity 0.2s;
         }
+        .shift-chip:hover { opacity: 0.7; }
+        
+        .shift-legend { margin-top: var(--space-lg); padding: var(--space-md); background: var(--bg-secondary); border-radius: var(--radius-lg); }
         .shift-legend h3 { margin-bottom: var(--space-sm); font-size: 0.875rem; }
-        .shift-list { display: flex; gap: var(--space-md); flex-wrap: wrap; }
+        .shift-list { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+        
+        .modal-overlay {
+          position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+          display: flex; align-items: center; justify-content: center; z-index: 100;
+        }
+        .modal {
+          background: var(--bg-secondary); border-radius: var(--radius-xl);
+          padding: var(--space-xl); min-width: 360px; max-width: 90vw;
+        }
+        .modal h3 { margin-bottom: var(--space-lg); display: flex; justify-content: space-between; align-items: center; }
+        .modal-date { font-size: 0.875rem; color: var(--text-muted); font-weight: normal; }
+        .shift-options {
+          display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm);
+          margin-bottom: var(--space-lg);
+        }
+        .shift-option {
+          display: flex; flex-direction: column; align-items: center; gap: var(--space-xs);
+          padding: var(--space-md); border-radius: var(--radius-md);
+          border: 2px solid transparent; cursor: pointer; transition: all 0.2s;
+        }
+        .shift-option:hover { transform: scale(1.02); }
+        .shift-option.selected { border-color: var(--accent-primary); box-shadow: 0 0 0 2px rgba(139,92,246,0.3); }
+        .shift-short { font-size: 1.25rem; font-weight: 700; }
+        .shift-name { font-size: 0.75rem; }
+        .shift-duration { font-size: 0.625rem; color: var(--text-muted); }
+        .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); }
+        
         @media (max-width: 768px) {
           .calendar-layout { flex-direction: column; }
-          .merge-panel { width: 100%; }
+          .team-panel { width: 100%; }
           .calendar-day { min-height: 60px; }
           .holiday-badge { display: none; }
+          .shift-options { grid-template-columns: repeat(3, 1fr); }
         }
       `}</style>
         </div>
