@@ -40,13 +40,18 @@ function RootComponent() {
 
                     {!isLoading && (
                         isAuthenticated ? (
-                            <Link to="/profile" className="user-avatar" title={user?.displayName || user?.username}>
-                                {user?.avatar ? (
-                                    <img src={user.avatar} alt="" />
-                                ) : (
-                                    <span>{(user?.displayName || user?.username || '?')[0].toUpperCase()}</span>
-                                )}
-                            </Link>
+                            <>
+                                <Link to="/connections" className="nav-icon-link" title={language === 'de' ? 'Verbindungen' : 'Connections'}>
+                                    👥
+                                </Link>
+                                <Link to="/profile" className="user-avatar" title={user?.displayName || user?.username}>
+                                    {user?.avatar ? (
+                                        <img src={user.avatar} alt="" />
+                                    ) : (
+                                        <span>{(user?.displayName || user?.username || '?')[0].toUpperCase()}</span>
+                                    )}
+                                </Link>
+                            </>
                         ) : (
                             <Link to="/login" className="btn btn-primary btn-sm">
                                 {language === 'de' ? 'Anmelden' : 'Sign In'}
@@ -89,6 +94,16 @@ function RootComponent() {
           width: 100%;
           height: 100%;
           object-fit: cover;
+        }
+        .nav-icon-link {
+          font-size: 1.25rem;
+          opacity: 0.7;
+          transition: all var(--transition-fast);
+          text-decoration: none;
+        }
+        .nav-icon-link:hover {
+          opacity: 1;
+          transform: scale(1.1);
         }
         .btn-sm {
           padding: var(--space-xs) var(--space-md);
