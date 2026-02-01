@@ -40,18 +40,13 @@ function RootComponent() {
 
                     {!isLoading && (
                         isAuthenticated ? (
-                            <>
-                                <Link to="/connections" className="nav-icon-link" title={language === 'de' ? 'Verbindungen' : 'Connections'}>
-                                    👥
-                                </Link>
-                                <Link to="/profile" className="user-avatar" title={user?.displayName || user?.username}>
-                                    {user?.avatar ? (
-                                        <img src={user.avatar} alt="" />
-                                    ) : (
-                                        <span>{(user?.displayName || user?.username || '?')[0].toUpperCase()}</span>
-                                    )}
-                                </Link>
-                            </>
+                            <Link to="/profile" className="user-avatar" title={user?.displayName || user?.username}>
+                                {user?.avatar ? (
+                                    <img src={user.avatar} alt="" />
+                                ) : (
+                                    <span>{(user?.displayName || user?.username || '?')[0].toUpperCase()}</span>
+                                )}
+                            </Link>
                         ) : (
                             <Link to="/login" className="btn btn-primary btn-sm">
                                 {language === 'de' ? 'Anmelden' : 'Sign In'}

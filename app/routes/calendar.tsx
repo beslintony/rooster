@@ -40,10 +40,11 @@ function CalendarPage() {
     const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([])
     const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set(['me']))
 
-    // Shift creation state
+    // Shift creation/editing state
     const [showShiftModal, setShowShiftModal] = useState(false)
     const [selectedDay, setSelectedDay] = useState<number | null>(null)
     const [selectedShiftType, setSelectedShiftType] = useState('')
+    const [editingShiftId, setEditingShiftId] = useState<string | null>(null)
     const [shifts, setShifts] = useState<Shift[]>([])
 
     const DAYS = getDays(language)
@@ -111,21 +112,40 @@ function CalendarPage() {
     const openShiftModal = (day: number) => {
         setSelectedDay(day)
         setSelectedShiftType('')
+        setEditingShiftId(null)
         setShowShiftModal(true)
     }
 
-    const addShift = () => {
+    const editShift = (shift: Shift) => {
+        setSelectedDay(shift.date.getDate())
+        setSelectedShiftType(shift.type)
+        setEditingShiftId(shift.id)
+        setShowShiftModal(true)
+    }
+
+    const saveShift = () => {
         if (!selectedDay || !selectedShiftType) return
 
-        const newShift: Shift = {
-            id: Date.now().toString(),
-            date: new Date(year, month, selectedDay),
-            type: selectedShiftType,
-            userId: 'me',
+        if (editingShiftId) {
+            // Update existing shift
+            setShifts(shifts.map(s => s.id === editingShiftId ? {
+                ...s,
+                type: selectedShiftType
+            } : s))
+        } else {
+            // Add new shift
+            const newShift: Shift = {
+                id: Date.now().toString(),
+                date: new Date(year, month, selectedDay),
+                type: selectedShiftType,
+                userId: 'me',
+            }
+            setShifts([...shifts, newShift])
         }
-        setShifts([...shifts, newShift])
+
         setShowShiftModal(false)
         setSelectedDay(null)
+        setEditingShiftId(null)
     }
 
     const getShiftsForDay = (day: number) => {
@@ -136,8 +156,13 @@ function CalendarPage() {
         )
     }
 
-    const deleteShift = (shiftId: string) => {
-        setShifts(shifts.filter(s => s.id !== shiftId))
+    const deleteShift = () => {
+        if (editingShiftId) {
+            setShifts(shifts.filter(s => s.id !== editingShiftId))
+            setShowShiftModal(false)
+            setSelectedDay(null)
+            setEditingShiftId(null)
+        }
     }
 
     const shiftTranslations: Record<string, string> = {
@@ -267,14 +292,18 @@ function CalendarPage() {
                                                 <div className="day-shifts">
                                                     {dayShifts.map(shift => {
                                                         const shiftInfo = SHIFT_TYPES[shift.type]
+                                                        const timeLabel = shiftInfo?.startTime
+                                                            ? `${shiftInfo.startTime}-${shiftInfo.endTime}`
+                                                            : null
                                                         return (
                                                             <div
                                                                 key={shift.id}
                                                                 className={`shift-chip ${shiftInfo?.cssClass || ''}`}
-                                                                onClick={(e) => { e.stopPropagation(); deleteShift(shift.id) }}
-                                                                title={language === 'de' ? 'Klicken zum Löschen' : 'Click to delete'}
+                                                                onClick={(e) => { e.stopPropagation(); editShift(shift) }}
+                                                                title={timeLabel ? `${shiftInfo?.name} (${timeLabel})` : shiftInfo?.name}
                                                             >
-                                                                {shiftInfo?.shortName || shift.type}
+                                                                <span className="shift-chip-code">{shiftInfo?.shortName || shift.type}</span>
+                                                                {timeLabel && <span className="shift-chip-time">{timeLabel}</span>}
                                                             </div>
                                                         )
                                                     })}
@@ -290,49 +319,74 @@ function CalendarPage() {
                     <div className="shift-legend">
                         <h3>{t('calendar.shiftTypes')}</h3>
                         <div className="shift-list">
-                            {Object.values(SHIFT_TYPES).map(shift => (
-                                <span key={shift.id} className={`shift-badge ${shift.cssClass}`}>
-                                    {shift.shortName} - {shiftTranslations[shift.id] || shift.name}
-                                </span>
-                            ))}
+                            {Object.values(SHIFT_TYPES).map(shift => {
+                                const timeLabel = shift.startTime ? `(${shift.startTime} - ${shift.endTime})` : ''
+                                return (
+                                    <span key={shift.id} className={`shift-badge ${shift.cssClass}`}>
+                                        <strong>{shift.shortName}</strong> {shiftTranslations[shift.id] || shift.name} {timeLabel}
+                                    </span>
+                                )
+                            })}
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Shift Creation Modal */}
+            {/* Shift Creation/Edit Modal */}
             {showShiftModal && (
                 <div className="modal-overlay" onClick={() => setShowShiftModal(false)}>
                     <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <h3>
-                            {language === 'de' ? 'Schicht hinzufügen' : 'Add Shift'}
+                            {editingShiftId
+                                ? (language === 'de' ? 'Schicht bearbeiten' : 'Edit Shift')
+                                : (language === 'de' ? 'Schicht hinzufügen' : 'Add Shift')
+                            }
                             <span className="modal-date">
                                 {selectedDay}. {MONTHS[month]} {year}
                             </span>
                         </h3>
                         <div className="shift-options">
-                            {Object.values(SHIFT_TYPES).map(shift => (
-                                <button
-                                    key={shift.id}
-                                    onClick={() => setSelectedShiftType(shift.id)}
-                                    className={`shift-option ${shift.cssClass} ${selectedShiftType === shift.id ? 'selected' : ''}`}
-                                >
-                                    <span className="shift-short">{shift.shortName}</span>
-                                    <span className="shift-name">{shiftTranslations[shift.id] || shift.name}</span>
-                                    {shift.duration > 0 && <span className="shift-duration">{shift.duration}h</span>}
-                                </button>
-                            ))}
+                            {Object.values(SHIFT_TYPES).map(shift => {
+                                const isActive = selectedShiftType === shift.id
+                                return (
+                                    <button
+                                        key={shift.id}
+                                        onClick={() => setSelectedShiftType(shift.id)}
+                                        className={`shift-option ${shift.cssClass} ${isActive ? 'selected' : ''}`}
+                                    >
+                                        <span className="shift-short">{shift.shortName}</span>
+                                        <span className="shift-name">{shiftTranslations[shift.id] || shift.name}</span>
+                                        {shift.startTime ? (
+                                            <span className="shift-time">{shift.startTime} - {shift.endTime}</span>
+                                        ) : (
+                                            shift.duration > 0 && <span className="shift-duration">{shift.duration}h</span> || <span className="shift-duration">-</span>
+                                        )}
+                                    </button>
+                                )
+                            })}
                         </div>
                         <div className="modal-actions">
+                            {editingShiftId && (
+                                <button
+                                    className="btn btn-ghost btn-delete"
+                                    onClick={deleteShift}
+                                >
+                                    {language === 'de' ? '🗑️ Löschen' : '🗑️ Delete'}
+                                </button>
+                            )}
+                            <div className="spacer" style={{ flex: 1 }} />
                             <button className="btn btn-ghost" onClick={() => setShowShiftModal(false)}>
                                 {language === 'de' ? 'Abbrechen' : 'Cancel'}
                             </button>
                             <button
                                 className="btn btn-primary"
-                                onClick={addShift}
+                                onClick={saveShift}
                                 disabled={!selectedShiftType}
                             >
-                                {language === 'de' ? 'Hinzufügen' : 'Add'}
+                                {editingShiftId
+                                    ? (language === 'de' ? 'Speichern' : 'Save')
+                                    : (language === 'de' ? 'Hinzufügen' : 'Add')
+                                }
                             </button>
                         </div>
                     </div>
@@ -392,16 +446,23 @@ function CalendarPage() {
           display: block; font-size: 0.625rem; color: var(--accent-success);
           margin-top: var(--space-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-        .day-shifts { margin-top: var(--space-xs); display: flex; flex-direction: column; gap: 2px; }
+        .day-shifts { margin-top: var(--space-xs); display: flex; flex-direction: column; gap: 4px; }
         .shift-chip {
-          padding: 2px 6px; border-radius: var(--radius-sm); font-size: 0.625rem;
+          padding: 3px 6px; border-radius: var(--radius-sm); font-size: 0.75rem;
           font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+          display: flex; justify-content: space-between; align-items: center;
+          overflow: hidden;
         }
-        .shift-chip:hover { opacity: 0.7; }
+        .shift-chip:hover { opacity: 0.9; transform: scale(1.02); }
+        .shift-chip-time { 
+          font-size: 0.65rem; font-weight: 400; margin-left: 4px; opacity: 0.9; 
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
         
         .shift-legend { margin-top: var(--space-lg); padding: var(--space-md); background: var(--bg-secondary); border-radius: var(--radius-lg); }
         .shift-legend h3 { margin-bottom: var(--space-sm); font-size: 0.875rem; }
         .shift-list { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+        .shift-badge { white-space: nowrap; }
         
         .modal-overlay {
           position: fixed; inset: 0; background: rgba(0,0,0,0.6);
@@ -409,32 +470,34 @@ function CalendarPage() {
         }
         .modal {
           background: var(--bg-secondary); border-radius: var(--radius-xl);
-          padding: var(--space-xl); min-width: 360px; max-width: 90vw;
+          padding: var(--space-xl); min-width: 420px; max-width: 95vw;
         }
         .modal h3 { margin-bottom: var(--space-lg); display: flex; justify-content: space-between; align-items: center; }
         .modal-date { font-size: 0.875rem; color: var(--text-muted); font-weight: normal; }
         .shift-options {
-          display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm);
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm);
           margin-bottom: var(--space-lg);
         }
         .shift-option {
-          display: flex; flex-direction: column; align-items: center; gap: var(--space-xs);
+          display: flex; flex-direction: column; align-items: center; gap: 2px;
           padding: var(--space-md); border-radius: var(--radius-md);
           border: 2px solid transparent; cursor: pointer; transition: all 0.2s;
         }
         .shift-option:hover { transform: scale(1.02); }
         .shift-option.selected { border-color: var(--accent-primary); box-shadow: 0 0 0 2px rgba(139,92,246,0.3); }
         .shift-short { font-size: 1.25rem; font-weight: 700; }
-        .shift-name { font-size: 0.75rem; }
-        .shift-duration { font-size: 0.625rem; color: var(--text-muted); }
-        .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); }
+        .shift-name { font-size: 0.75rem; text-align: center; }
+        .shift-time, .shift-duration { font-size: 0.65rem; color: var(--text-muted); font-family: monospace; }
+        .btn-delete { color: var(--accent-error); }
+        .modal-actions { display: flex; align-items: center; gap: var(--space-sm); width: 100%; }
         
         @media (max-width: 768px) {
           .calendar-layout { flex-direction: column; }
           .team-panel { width: 100%; }
-          .calendar-day { min-height: 60px; }
+          .calendar-day { min-height: 70px; }
           .holiday-badge { display: none; }
           .shift-options { grid-template-columns: repeat(3, 1fr); }
+          .shift-chip-time { display: none; } 
         }
       `}</style>
         </div>
