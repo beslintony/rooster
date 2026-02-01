@@ -7,50 +7,101 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Users in the family
+// Users with authentication and preferences
 model User {
   id              String    @id @default(cuid())
   email           String    @unique
-  name            String
-  role            String    @default("FAMILY_MEMBER") // ADMIN, FAMILY_MEMBER
-  workType        String    @default("OFFICE")        // NURSE_SHIFT, OFFICE, NONE
+  username        String    @unique
+  passwordHash    String
+  displayName     String?
+  avatar          String?
+  
+  // Preferences
+  state           String?   // German state for holidays (e.g., "NW", "BY")
+  language        String    @default("de")
+  theme           String    @default("dark")
+  occupationType  String?   // NURSE, OFFICE, RETAIL, CUSTOM
+  
+  // Google sync
   googleAccountId String?
   refreshToken    String?
+  
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  shifts        Shift[]
-  tasks         Task[]       @relation("AssignedTasks")
-  createdTasks  Task[]       @relation("CreatedTasks")
-  shoppingItems ShoppingItem[]
-  vacations     Vacation[]
+  // Owned data
+  shifts          Shift[]
+  shiftTemplates  ShiftTemplate[]
+  tasks           Task[]       @relation("AssignedTasks")
+  createdTasks    Task[]       @relation("CreatedTasks")
+  shoppingItems   ShoppingItem[]
+  vacations       Vacation[]
+  ownedLists      SharedList[] @relation("ListOwner")
+  
+  // Social connections
+  sentConnections     Connection[] @relation("ConnectionSender")
+  receivedConnections Connection[] @relation("ConnectionReceiver")
+  
+  // List memberships
+  listMemberships SharedListMember[]
 }
 
-// Shift schedule for nurses
+// Social connections between users
+model Connection {
+  id          String   @id @default(cuid())
+  senderId    String
+  sender      User     @relation("ConnectionSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User     @relation("ConnectionReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  status      String   @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  
+  // Permissions (comma-separated: VIEW_CALENDAR,EDIT_CALENDAR,VIEW_TASKS,ASSIGN_TASKS)
+  permissions String   @default("VIEW_CALENDAR")
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId, status])
+}
+
+// Custom shift templates per user
+model ShiftTemplate {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String  // e.g., "Early Shift", "Night Shift"
+  shortName String  // e.g., "F", "S", "N"
+  startTime String? // "06:00"
+  endTime   String? // "14:00"
+  duration  Int?    // hours
+  color     String  // Hex color for display
+  isDefault Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+}
+
+// Shift schedule entries
 model Shift {
   id            String    @id @default(cuid())
   userId        String
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   date          DateTime
-  shiftType     String    // EARLY, LATE, NIGHT, ON_CALL, DAY_OFF
-  startTime     String    // "06:00"
-  endTime       String    // "14:00"
+  templateId    String?   // Link to ShiftTemplate
+  shiftType     String    // Template name or custom
+  startTime     String?
+  endTime       String?
   notes         String?
+  visibility    String    @default("CONNECTIONS") // PRIVATE, CONNECTIONS, PUBLIC
   googleEventId String?
+  
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([userId, date])
-}
-
-// Shift templates for quick entry
-model ShiftTemplate {
-  id        String  @id @default(cuid())
-  name      String  // e.g., "Early", "Late", "Night"
-  startTime String  // "06:00"
-  endTime   String  // "14:00"
-  color     String  // Hex color for display
-  isDefault Boolean @default(false)
+  @@index([date])
 }
 
 // Tasks and responsibilities
@@ -58,19 +109,23 @@ model Task {
   id            String    @id @default(cuid())
   title         String
   description   String?
-  assigneeId    String?
-  assignee      User?     @relation("AssignedTasks", fields: [assigneeId], references: [id])
   createdById   String
   createdBy     User      @relation("CreatedTasks", fields: [createdById], references: [id])
+  assigneeId    String?
+  assignee      User?     @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  listId        String?   // Optional shared list
+  list          SharedList? @relation(fields: [listId], references: [id])
   dueDate       DateTime?
   recurring     String?   // DAILY, WEEKLY, MONTHLY
   completed     Boolean   @default(false)
   completedAt   DateTime?
   googleEventId String?
+  
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([assigneeId])
+  @@index([listId])
   @@index([dueDate])
 }
 
@@ -80,17 +135,46 @@ model ShoppingItem {
   name        String
   category    String?
   quantity    Int       @default(1)
-  unit        String?   // "kg", "pieces", "liters"
+  unit        String?
   priority    String    @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
   purchased   Boolean   @default(false)
   purchasedAt DateTime?
   addedById   String
   addedBy     User      @relation(fields: [addedById], references: [id])
-  listType    String    @default("SHOPPING") // SHOPPING, WISHLIST
+  listId      String?   // Optional shared list
+  list        SharedList? @relation(fields: [listId], references: [id])
+  
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  @@index([listType, purchased])
+  @@index([listId, purchased])
+}
+
+// Shared lists for tasks or shopping
+model SharedList {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   // SHOPPING, TASKS
+  ownerId   String
+  owner     User     @relation("ListOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  members   SharedListMember[]
+  tasks     Task[]
+  items     ShoppingItem[]
+}
+
+model SharedListMember {
+  id        String   @id @default(cuid())
+  listId    String
+  list      SharedList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  canEdit   Boolean  @default(true)
+  
+  @@unique([listId, userId])
 }
 
 // Vacation planning
@@ -103,6 +187,7 @@ model Vacation {
   title         String?
   status        String   @default("PLANNED") // PLANNED, APPROVED, TAKEN
   googleEventId String?
+  
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
