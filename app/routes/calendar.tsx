@@ -445,47 +445,51 @@ function CalendarPage() {
 
     return (
         <div className="calendar-page">
+            {/* Main Navigation Row */}
             <div className="calendar-header">
                 <div className="calendar-nav">
-                    <button onClick={prev} className="btn btn-ghost">←</button>
+                    <button onClick={prev} className="btn btn-ghost btn-icon">←</button>
                     <h1>{headerLabel}</h1>
-                    <button onClick={next} className="btn btn-ghost">→</button>
+                    <button onClick={next} className="btn btn-ghost btn-icon">→</button>
                 </div>
-                <div className="calendar-actions">
-                    <select
-                        value={selectedState}
-                        onChange={(e) => setSelectedState(e.target.value as GermanState)}
-                        className="input state-select"
-                    >
-                        {Object.entries(GERMAN_STATES).map(([code, name]) => (
-                            <option key={code} value={code}>{name}</option>
-                        ))}
-                    </select>
-                    <button onClick={goToday} className="btn btn-secondary">{t('common.today')}</button>
+                <div className="calendar-controls">
+                    <button onClick={goToday} className="btn btn-secondary btn-sm">{t('common.today')}</button>
                     <div className="view-toggle">
                         <button
                             onClick={() => setViewMode('month')}
-                            className={`btn ${viewMode === 'month' ? 'btn-primary' : 'btn-ghost'}`}
+                            className={`toggle-btn ${viewMode === 'month' ? 'active' : ''}`}
                         >
                             {t('common.month')}
                         </button>
                         <button
                             onClick={() => setViewMode('week')}
-                            className={`btn ${viewMode === 'week' ? 'btn-primary' : 'btn-ghost'}`}
+                            className={`toggle-btn ${viewMode === 'week' ? 'active' : ''}`}
                         >
                             {t('common.week')}
                         </button>
                     </div>
-                    {isAuthenticated && (
-                        <button
-                            onClick={() => setShowTeamPanel(!showTeamPanel)}
-                            className={`btn ${showTeamPanel ? 'btn-primary' : 'btn-ghost'}`}
-                            title={language === 'de' ? 'Teamkalender anzeigen' : 'Show Team Calendar'}
-                        >
-                            👥 {language === 'de' ? 'Team' : 'Team'}
-                        </button>
-                    )}
                 </div>
+            </div>
+
+            {/* Secondary Controls Row (collapsible on mobile) */}
+            <div className="calendar-toolbar">
+                <select
+                    value={selectedState}
+                    onChange={(e) => setSelectedState(e.target.value as GermanState)}
+                    className="input state-select"
+                >
+                    {Object.entries(GERMAN_STATES).map(([code, name]) => (
+                        <option key={code} value={code}>{name}</option>
+                    ))}
+                </select>
+                {isAuthenticated && (
+                    <button
+                        onClick={() => setShowTeamPanel(!showTeamPanel)}
+                        className={`btn ${showTeamPanel ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                    >
+                        👥 {language === 'de' ? 'Team' : 'Team'}
+                    </button>
+                )}
             </div>
 
             <div className="calendar-layout">
@@ -703,143 +707,184 @@ function CalendarPage() {
             )}
 
             <style>{`
-                .calendar-page { max-width: 1200px; margin: 0 auto; padding-bottom: 80px; }
+                .calendar-page { max-width: 1200px; margin: 0 auto; }
+                
+                /* Header Layout */
                 .calendar-header {
                     display: flex; justify-content: space-between; align-items: center;
-                    flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-lg);
+                    gap: var(--space-md); margin-bottom: var(--space-md);
+                    flex-wrap: wrap;
                 }
-                .calendar-nav { display: flex; align-items: center; gap: var(--space-md); }
-                .calendar-nav h1 { font-size: 1.5rem; font-weight: 600; min-width: 240px; text-align: center; }
+                .calendar-nav { 
+                    display: flex; align-items: center; gap: var(--space-sm);
+                }
+                .calendar-nav h1 { 
+                    font-size: 1.5rem; font-weight: 700; min-width: 200px; text-align: center;
+                    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+                    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+                }
+                .btn-icon { 
+                    width: 40px; height: 40px; padding: 0; font-size: 1.25rem;
+                    border-radius: var(--radius-full);
+                }
+                .calendar-controls { 
+                    display: flex; align-items: center; gap: var(--space-sm);
+                }
+                
+                /* View Toggle */
+                .view-toggle {
+                    display: flex; background: var(--bg-tertiary); padding: 3px;
+                    border-radius: var(--radius-lg); gap: 2px;
+                }
+                .toggle-btn {
+                    padding: 6px 12px; border: none; background: transparent;
+                    border-radius: var(--radius-md); font-size: 0.8rem; font-weight: 500;
+                    color: var(--text-secondary); cursor: pointer; transition: all 0.2s;
+                }
+                .toggle-btn:hover { color: var(--text-primary); }
+                .toggle-btn.active { 
+                    background: var(--accent-primary); color: white;
+                    box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+                }
+                
+                /* Toolbar */
+                .calendar-toolbar {
+                    display: flex; align-items: center; gap: var(--space-sm);
+                    margin-bottom: var(--space-md); flex-wrap: wrap;
+                }
+                .state-select {
+                    max-width: 180px; font-size: 0.85rem;
+                    padding: 8px 12px;
+                }
+                
+                /* Layout */
+                .calendar-layout { display: flex; gap: var(--space-lg); }
+                .calendar-main { flex: 1; min-width: 0; }
+                .team-panel { width: 220px; flex-shrink: 0; }
+                .team-users { display: flex; flex-direction: column; gap: var(--space-sm); margin-top: var(--space-md); }
+                .team-user { display: flex; align-items: center; gap: var(--space-sm); cursor: pointer; }
+                .user-dot { width: 12px; height: 12px; border-radius: var(--radius-full); }
 
-                /* Modal Styles */
-                .modal-overlay {
-                    position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
-                    display: flex; align-items: center; justify-content: center; z-index: 200;
+                /* Calendar Grid */
+                .calendar-grid {
+                    display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px;
+                    background: var(--bg-tertiary); border-radius: var(--radius-lg); overflow: hidden;
+                    border: 1px solid var(--bg-tertiary);
                 }
-                .modal {
-                    background: var(--bg-secondary); border-radius: var(--radius-xl);
-                    width: 480px; max-width: 95vw;
-                    display: flex; flex-direction: column; overflow: hidden;
-                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
-                    animation: modalFadeIn 0.25s ease-out;
-                    border: 1px solid rgba(255,255,255,0.1);
+                .calendar-day-header {
+                    padding: 10px; text-align: center; font-weight: 600;
+                    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+                    color: var(--text-secondary); background: var(--bg-secondary);
                 }
-                @keyframes modalFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-
-                .modal-header {
-                    padding: var(--space-lg); border-bottom: 1px solid var(--bg-tertiary);
+                .calendar-day {
+                    min-height: 110px; padding: 8px;
+                    background: var(--bg-secondary); cursor: pointer;
+                    transition: all var(--transition-fast);
+                    display: flex; flex-direction: column;
+                }
+                .calendar-day.empty { background: var(--bg-primary); cursor: default; opacity: 0.5; }
+                .calendar-day.has-day:hover { background: var(--bg-tertiary); }
+                .calendar-day.today { background: rgba(139, 92, 246, 0.08); }
+                .calendar-day.is-holiday { background: rgba(245, 158, 11, 0.05); }
+                
+                .day-number {
+                    display: inline-flex; align-items: center; justify-content: center;
+                    width: 28px; height: 28px; font-weight: 600; font-size: 0.9rem;
+                    border-radius: var(--radius-full); margin-bottom: 6px;
+                }
+                .today .day-number { 
+                    background: var(--accent-primary); color: white; 
+                    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4); 
+                }
+                .holiday-badge {
+                    display: inline-block; font-size: 0.6rem; color: var(--accent-warning);
+                    background: rgba(245, 158, 11, 0.15); padding: 2px 6px; border-radius: 4px;
+                    margin-bottom: 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                }
+                .day-shifts { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+                .shift-chip {
+                    padding: 5px 8px; border-radius: 6px; font-size: 0.75rem;
+                    font-weight: 600; cursor: pointer; transition: all 0.15s;
                     display: flex; justify-content: space-between; align-items: center;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                 }
-                .modal-header h3 { margin: 0; font-size: 1.25rem; font-weight: 600; }
-                .btn-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary); transition: color 0.2s; }
-                .btn-close:hover { color: var(--text-primary); }
+                .shift-chip:hover { transform: translateY(-1px); box-shadow: 0 3px 6px rgba(0,0,0,0.15); }
 
-                .modal-body { padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); max-height: 70vh; overflow-y: auto; }
-
+                /* Modal - now uses global styles, just add calendar-specific overrides */
                 .selected-date-display {
                     display: flex; align-items: center; gap: var(--space-sm);
                     font-size: 1.1rem; font-weight: 500; color: var(--text-primary);
-                    padding-bottom: var(--space-sm); border-bottom: 1px dashed var(--bg-tertiary);
+                    padding: var(--space-sm) 0; border-bottom: 1px dashed var(--bg-tertiary);
                 }
-
-                .section-label { font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: var(--space-sm); }
-
-                .shift-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); }
+                .section-label { 
+                    font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); 
+                    text-transform: uppercase; letter-spacing: 0.05em; margin-top: var(--space-md);
+                }
+                .shift-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); margin-top: var(--space-sm); }
                 .shift-option {
-                    display: flex; align-items: center; gap: var(--space-md);
-                    padding: var(--space-md); border-radius: var(--radius-md);
+                    display: flex; align-items: center; gap: var(--space-sm);
+                    padding: 12px; border-radius: var(--radius-md);
                     border: 2px solid var(--bg-tertiary); background: var(--bg-primary);
                     cursor: pointer; transition: all 0.2s; text-align: left;
                 }
-                .shift-option:hover { transform: translateY(-2px); border-color: var(--accent-primary); }
+                .shift-option:hover { border-color: var(--accent-primary); background: rgba(139,92,246,0.05); }
                 .shift-option.selected { border-color: var(--accent-primary); background: rgba(139,92,246,0.1); }
-
                 .shift-short {
-                    width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+                    width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
                     background: var(--bg-secondary); border-radius: var(--radius-full);
-                    font-weight: 700; font-size: 0.9rem; flex-shrink: 0;
-                    border: 1px solid var(--bg-tertiary);
+                    font-weight: 700; font-size: 0.85rem; flex-shrink: 0;
                 }
-                .shift-details { display: flex; flex-direction: column; }
-                .shift-name { font-weight: 600; font-size: 0.9rem; }
-                .shift-time { font-size: 0.75rem; color: var(--text-secondary); }
-
-                /* Visibility Toggle Group */
+                .shift-details { display: flex; flex-direction: column; min-width: 0; }
+                .shift-name { font-weight: 600; font-size: 0.85rem; }
+                .shift-time { font-size: 0.7rem; color: var(--text-secondary); }
+                
+                /* Visibility Toggle */
+                .visibility-selector { margin-top: var(--space-sm); }
                 .toggle-group { display: flex; background: var(--bg-primary); padding: 4px; border-radius: var(--radius-lg); border: 1px solid var(--bg-tertiary); }
                 .toggle-option {
-                    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-                    padding: 10px 8px; border: none; background: none; border-radius: var(--radius-md);
-                    cursor: pointer; font-size: 0.85rem; color: var(--text-secondary);
-                    transition: all 0.2s;
+                    flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;
+                    padding: 8px; border: none; background: none; border-radius: var(--radius-md);
+                    cursor: pointer; font-size: 0.8rem; color: var(--text-secondary); transition: all 0.2s;
                 }
+                .toggle-option .icon { font-size: 1rem; }
+                .toggle-option .label { font-size: 0.7rem; }
                 .toggle-option.active { background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: 600; }
-
-                .modal-footer {
-                    padding: var(--space-md) var(--space-lg); border-top: 1px solid var(--bg-tertiary);
-                    display: flex; gap: var(--space-md); justify-content: flex-end; background: var(--bg-secondary);
-                }
+                
                 .spacer { flex: 1; }
                 .btn-delete { color: var(--accent-danger); }
                 .btn-delete:hover { background: rgba(239, 68, 68, 0.1); }
 
-                /* Mobile Bottom Sheet */
+                /* Mobile Responsive */
                 @media (max-width: 768px) {
-                    .modal-overlay { align-items: flex-end; }
-                    .modal {
-                        width: 100%; max-width: 100%; border-radius: 24px 24px 0 0;
-                        max-height: 90vh; animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                    .calendar-header { 
+                        flex-direction: column; align-items: stretch; 
+                        gap: var(--space-sm); margin-bottom: var(--space-sm);
                     }
-                    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+                    .calendar-nav { justify-content: center; }
+                    .calendar-nav h1 { font-size: 1.25rem; min-width: auto; }
+                    .calendar-controls { justify-content: center; }
+                    
+                    .calendar-toolbar { 
+                        display: none; /* Hide on mobile for cleaner UI */
+                    }
+                    
+                    .calendar-layout { flex-direction: column; }
+                    .team-panel { width: 100%; }
+                    
+                    .calendar-grid { border-radius: var(--radius-md); }
+                    .calendar-day-header { padding: 6px; font-size: 0.6rem; }
+                    .calendar-day { min-height: 70px; padding: 4px; }
+                    .day-number { width: 22px; height: 22px; font-size: 0.75rem; margin-bottom: 4px; }
+                    .holiday-badge { font-size: 0.5rem; padding: 1px 3px; }
+                    .shift-chip { 
+                        padding: 3px 5px; font-size: 0.65rem; 
+                        justify-content: center;
+                    }
+                    .shift-chip .shift-time-display { display: none; }
+                    
                     .shift-options { grid-template-columns: 1fr; }
-                    .modal-body { padding: var(--space-md); }
-                    .modal-footer { padding-bottom: max(var(--space-md), env(safe-area-inset-bottom)); }
+                    .shift-option { padding: 10px; }
                 }
-
-                /* Calendar Grid Improvements */
-                .calendar-grid {
-                    display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px;
-                    background: var(--bg-tertiary); border-radius: var(--radius-md); overflow: hidden;
-                    border: 1px solid var(--bg-tertiary);
-                }
-                .calendar-day-header {
-                    padding: var(--space-sm); text-align: center; font-weight: 600;
-                    font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary);
-                    background: var(--bg-secondary);
-                }
-                .calendar-day {
-                    min-height: 120px; padding: var(--space-xs);
-                    background: var(--bg-secondary); cursor: pointer;
-                    transition: background var(--transition-fast);
-                    display: flex; flex-direction: column;
-                }
-                @media (max-width: 768px) {
-                    .calendar-day { min-height: 80px; }
-                    .calendar-day-header { font-size: 0.65rem; padding: 4px; }
-                }
-                .calendar-day.empty { background: var(--bg-primary); cursor: default; }
-                .calendar-day.has-day:hover { background: var(--bg-tertiary); }
-                .calendar-day.today { background: rgba(139, 92, 246, 0.05); }
-                .day-number {
-                    display: inline-flex; align-items: center; justify-content: center;
-                    width: 26px; height: 26px; font-weight: 600; font-size: 0.9rem;
-                    border-radius: var(--radius-full); margin-bottom: 4px;
-                }
-                .today .day-number { background: var(--accent-primary); color: white; box-shadow: 0 2px 4px rgba(139, 92, 246, 0.4); }
-
-                .holiday-badge {
-                    display: inline-block; font-size: 0.65rem; color: var(--accent-warning);
-                    background: rgba(245, 158, 11, 0.1); padding: 1px 4px; border-radius: 4px;
-                    margin-bottom: 2px;
-                }
-
-                .day-shifts { display: flex; flex-direction: column; gap: 3px; }
-                .shift-chip {
-                    padding: 4px 6px; border-radius: 6px; font-size: 0.75rem;
-                    font-weight: 600; cursor: pointer; transition: all 0.2s;
-                    display: flex; justify-content: space-between; align-items: center;
-                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-                }
-                .shift-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 2; }
             `}</style>
         </div>
     )
