@@ -1,4 +1,5 @@
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
+import { ThemeToggle } from '../components/ui/ThemeToggle'
 
 export const Route = createRootRoute({
     component: RootComponent,
@@ -25,6 +26,7 @@ function RootComponent() {
                     <Link to="/tasks" className="nav-link" activeProps={{ className: 'nav-link active' }}>
                         Tasks
                     </Link>
+                    <ThemeToggle />
                 </div>
             </nav>
             <main className="main">
