@@ -904,7 +904,13 @@ function CalendarPage() {
                     .view-toggle { padding: 2px; }
                     .toggle-btn { padding: 4px 10px; font-size: 0.7rem; }
                     
-                    .calendar-toolbar { display: none; }
+                    .calendar-toolbar { 
+                        justify-content: center;
+                        margin-bottom: var(--space-xs);
+                        gap: var(--space-xs);
+                    }
+                    .state-select { max-width: 140px; font-size: 0.75rem; padding: 6px 8px; }
+                    .calendar-toolbar .btn { font-size: 0.75rem; padding: 6px 10px; }
                     .calendar-layout { flex-direction: column; gap: var(--space-sm); }
                     .team-panel { width: 100%; }
                     
