@@ -16,7 +16,7 @@ interface Shift {
     date: Date
     type: string // Front-end uses 'type', backend uses 'shiftType'. We map it.
     notes?: string
-    userId: string
+    userId?: string
     visibility?: string
 }
 
@@ -91,12 +91,17 @@ function CalendarPage() {
     useEffect(() => {
         if (isAuthenticated) {
             fetchConnectedUsers()
-            fetchConnectedUsers()
-            fetchShifts()
             fetchTemplates()
             fetchHolidays()
         }
     }, [isAuthenticated, user?.state, user?.watchedStates, currentDate.getFullYear()]) // Re-fetch on year change
+
+    // Refetch shifts when connectedUsers changes (to get their shared shifts)
+    useEffect(() => {
+        if (isAuthenticated) {
+            fetchShifts()
+        }
+    }, [isAuthenticated, connectedUsers.length])
 
     const fetchHolidays = async () => {
         if (!user) return
@@ -132,19 +137,39 @@ function CalendarPage() {
 
     const fetchShifts = async () => {
         try {
-            // Fetching all shifts for now for simplicity. 
-            // In a real app, we'd filter by range (e.g. current view).
-            const res = await fetch('/api/shifts', { credentials: 'include' })
-            if (res.ok) {
-                const data = await res.json()
-                // Map backend shiftType to frontend type and string date to Date object
-                const parsedShifts = data.shifts.map((s: any) => ({
+            // Fetch my shifts
+            const myRes = await fetch('/api/shifts', { credentials: 'include' })
+            let allShifts: Shift[] = []
+
+            if (myRes.ok) {
+                const myData = await myRes.json()
+                const myShifts = myData.shifts.map((s: any) => ({
                     ...s,
                     date: new Date(s.date),
-                    type: s.shiftType
+                    type: s.shiftType,
+                    userId: 'me'
                 }))
-                setShifts(parsedShifts)
+                allShifts = [...myShifts]
             }
+
+            // Fetch connected users' shifts
+            for (const connUser of connectedUsers) {
+                try {
+                    const connRes = await fetch(`/api/shifts?userId=${connUser.id}`, { credentials: 'include' })
+                    if (connRes.ok) {
+                        const connData = await connRes.json()
+                        const connShifts = connData.shifts.map((s: any) => ({
+                            ...s,
+                            date: new Date(s.date),
+                            type: s.shiftType,
+                            userId: connUser.id
+                        }))
+                        allShifts = [...allShifts, ...connShifts]
+                    }
+                } catch (e) { /* ignore individual user fetch errors */ }
+            }
+
+            setShifts(allShifts)
         } catch (error) {
             console.error('Failed to fetch shifts:', error)
         }
@@ -398,7 +423,8 @@ function CalendarPage() {
         return shifts.filter(s =>
             s.date.getFullYear() === date.getFullYear() &&
             s.date.getMonth() === date.getMonth() &&
-            s.date.getDate() === date.getDate()
+            s.date.getDate() === date.getDate() &&
+            selectedUsers.has(s.userId || 'me')
         )
     }
 
