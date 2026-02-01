@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
+import { SHIFT_TYPES, type ShiftTypeId } from '~/lib/shifts'
+import { getHolidaysForMonth, GERMAN_STATES, type GermanState } from '~/lib/holidays'
 
 export const Route = createFileRoute('/calendar')({
     component: CalendarPage,
@@ -7,13 +9,14 @@ export const Route = createFileRoute('/calendar')({
 
 type ViewMode = 'month' | 'week'
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December']
+const DAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
+const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
 
 function CalendarPage() {
     const [currentDate, setCurrentDate] = useState(new Date())
     const [viewMode, setViewMode] = useState<ViewMode>('month')
+    const [selectedState, setSelectedState] = useState<GermanState>('NW')
 
     const year = currentDate.getFullYear()
     const month = currentDate.getMonth()
@@ -22,6 +25,10 @@ function CalendarPage() {
     const lastDay = new Date(year, month + 1, 0)
     const startOffset = firstDay.getDay()
     const daysInMonth = lastDay.getDate()
+
+    // Get holidays for this month
+    const holidays = getHolidaysForMonth(year, month, selectedState)
+    const holidayMap = new Map(holidays.map(h => [h.date.getDate(), h]))
 
     const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1))
     const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1))
@@ -48,22 +55,31 @@ function CalendarPage() {
                     <button onClick={nextMonth} className="btn btn-ghost">→</button>
                 </div>
                 <div className="calendar-actions">
-                    <button onClick={goToday} className="btn btn-secondary">Today</button>
+                    <select
+                        value={selectedState}
+                        onChange={(e) => setSelectedState(e.target.value as GermanState)}
+                        className="input state-select"
+                    >
+                        {Object.entries(GERMAN_STATES).map(([code, name]) => (
+                            <option key={code} value={code}>{name}</option>
+                        ))}
+                    </select>
+                    <button onClick={goToday} className="btn btn-secondary">Heute</button>
                     <div className="view-toggle">
                         <button
                             onClick={() => setViewMode('month')}
                             className={`btn ${viewMode === 'month' ? 'btn-primary' : 'btn-ghost'}`}
                         >
-                            Month
+                            Monat
                         </button>
                         <button
                             onClick={() => setViewMode('week')}
                             className={`btn ${viewMode === 'week' ? 'btn-primary' : 'btn-ghost'}`}
                         >
-                            Week
+                            Woche
                         </button>
                     </div>
-                    <button className="btn btn-primary">+ Add Shift</button>
+                    <button className="btn btn-primary">+ Dienst</button>
                 </div>
             </div>
 
@@ -72,32 +88,41 @@ function CalendarPage() {
                     {DAYS.map(day => (
                         <div key={day} className="calendar-day-header">{day}</div>
                     ))}
-                    {calendarDays.map((day, idx) => (
-                        <div
-                            key={idx}
-                            className={`calendar-day ${day ? 'has-day' : 'empty'} ${day && isToday(day) ? 'today' : ''}`}
-                        >
-                            {day && (
-                                <>
-                                    <span className="day-number">{day}</span>
-                                    <div className="day-events">
-                                        {/* Events will be rendered here */}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    ))}
+                    {calendarDays.map((day, idx) => {
+                        const holiday = day ? holidayMap.get(day) : null
+                        return (
+                            <div
+                                key={idx}
+                                className={`calendar-day ${day ? 'has-day' : 'empty'} ${day && isToday(day) ? 'today' : ''} ${holiday ? 'is-holiday' : ''}`}
+                            >
+                                {day && (
+                                    <>
+                                        <span className="day-number">{day}</span>
+                                        {holiday && (
+                                            <span className="holiday-badge" title={holiday.name}>
+                                                {holiday.name.substring(0, 10)}...
+                                            </span>
+                                        )}
+                                        <div className="day-events">
+                                            {/* Events will be rendered here */}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )
+                    })}
                 </div>
             </div>
 
             <div className="shift-legend" style={{ marginTop: 'var(--space-lg)' }}>
-                <h3 style={{ marginBottom: 'var(--space-sm)' }}>Shift Types</h3>
+                <h3 style={{ marginBottom: 'var(--space-sm)' }}>Dienstarten (Pflege)</h3>
                 <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-                    <span className="shift-badge shift-early">Early (06-14)</span>
-                    <span className="shift-badge shift-late">Late (14-22)</span>
-                    <span className="shift-badge shift-night">Night (22-06)</span>
-                    <span className="shift-badge shift-oncall">On-Call</span>
-                    <span className="shift-badge shift-dayoff">Day Off</span>
+                    {Object.values(SHIFT_TYPES).map(shift => (
+                        <span key={shift.id} className={`shift-badge ${shift.cssClass}`}>
+                            {shift.shortName} - {shift.name}
+                            {shift.duration > 0 && ` (${shift.duration}h)`}
+                        </span>
+                    ))}
                 </div>
             </div>
 
@@ -125,6 +150,11 @@ function CalendarPage() {
           display: flex; 
           gap: var(--space-sm); 
           align-items: center;
+          flex-wrap: wrap;
+        }
+        .state-select {
+          width: auto;
+          min-width: 180px;
         }
         .view-toggle { 
           display: flex; 
@@ -179,6 +209,10 @@ function CalendarPage() {
           padding: var(--space-md);
           background: var(--bg-secondary);
           border-radius: var(--radius-lg);
+        }
+        @media (max-width: 768px) {
+          .calendar-day { min-height: 60px; }
+          .holiday-badge { display: none; }
         }
       `}</style>
         </div>

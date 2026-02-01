@@ -287,7 +287,7 @@ body {
   }
 }
 
-/* Shift badges */
+/* Shift badges - German nursing shifts */
 .shift-badge {
   display: inline-flex;
   align-items: center;
@@ -299,29 +299,94 @@ body {
   text-transform: uppercase;
 }
 
-.shift-early {
+/* Nurse shifts */
+.shift-frueh {
   background: rgba(34, 197, 94, 0.2);
-  color: var(--shift-early);
+  color: #22c55e;
 }
 
-.shift-late {
+.shift-spaet {
   background: rgba(245, 158, 11, 0.2);
-  color: var(--shift-late);
+  color: #f59e0b;
 }
 
-.shift-night {
+.shift-nacht {
   background: rgba(139, 92, 246, 0.2);
-  color: var(--shift-night);
+  color: #8b5cf6;
 }
 
-.shift-oncall {
+.shift-tag {
+  background: rgba(6, 182, 212, 0.2);
+  color: #06b6d4;
+}
+
+.shift-bereitschaft {
   background: rgba(239, 68, 68, 0.2);
-  color: var(--shift-oncall);
+  color: #ef4444;
 }
 
-.shift-dayoff {
+.shift-krank {
+  background: rgba(244, 63, 94, 0.2);
+  color: #f43f5e;
+}
+
+.shift-urlaub {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.shift-frei {
   background: rgba(107, 114, 128, 0.2);
-  color: var(--shift-dayoff);
+  color: #6b7280;
+}
+
+.shift-flexibel {
+  background: rgba(168, 85, 247, 0.2);
+  color: #a855f7;
+}
+
+/* Office work types */
+.work-office {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+}
+
+.work-homeoffice {
+  background: rgba(20, 184, 166, 0.2);
+  color: #14b8a6;
+}
+
+.work-flexibel {
+  background: rgba(168, 85, 247, 0.2);
+  color: #a855f7;
+}
+
+.work-urlaub {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.work-krank {
+  background: rgba(244, 63, 94, 0.2);
+  color: #f43f5e;
+}
+
+.work-frei {
+  background: rgba(107, 114, 128, 0.2);
+  color: #6b7280;
+}
+
+/* Holiday indicator */
+.holiday-badge {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+}
+
+.calendar-day.is-holiday {
+  background: rgba(251, 191, 36, 0.05);
 }
 
 /* Form elements */
