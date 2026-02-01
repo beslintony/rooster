@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { SHIFT_TYPES, type ShiftTypeId } from '~/lib/shifts'
+import { SHIFT_TYPES } from '~/lib/shifts'
 import { getHolidaysForMonth, GERMAN_STATES, type GermanState } from '~/lib/holidays'
+import { useI18n, getMonths, getDays } from '~/lib/i18n'
 
 export const Route = createFileRoute('/calendar')({
     component: CalendarPage,
@@ -9,14 +10,14 @@ export const Route = createFileRoute('/calendar')({
 
 type ViewMode = 'month' | 'week'
 
-const DAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
-const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
-
 function CalendarPage() {
+    const { t, language } = useI18n()
     const [currentDate, setCurrentDate] = useState(new Date())
     const [viewMode, setViewMode] = useState<ViewMode>('month')
     const [selectedState, setSelectedState] = useState<GermanState>('NW')
+
+    const DAYS = getDays(language)
+    const MONTHS = getMonths(language)
 
     const year = currentDate.getFullYear()
     const month = currentDate.getMonth()
@@ -46,6 +47,19 @@ function CalendarPage() {
     const isToday = (day: number) =>
         day === today.getDate() && month === today.getMonth() && year === today.getFullYear()
 
+    // Shift type translations
+    const shiftTranslations: Record<string, string> = {
+        FRUEH: t('shift.frueh'),
+        SPAET: t('shift.spaet'),
+        NACHT: t('shift.nacht'),
+        TAG: t('shift.tag'),
+        BEREITSCHAFT: t('shift.bereitschaft'),
+        KRANK: t('shift.krank'),
+        URLAUB: t('shift.urlaub'),
+        FREI: t('shift.frei'),
+        FLEXIBEL: t('shift.flexibel'),
+    }
+
     return (
         <div className="calendar-page">
             <div className="calendar-header">
@@ -64,22 +78,22 @@ function CalendarPage() {
                             <option key={code} value={code}>{name}</option>
                         ))}
                     </select>
-                    <button onClick={goToday} className="btn btn-secondary">Heute</button>
+                    <button onClick={goToday} className="btn btn-secondary">{t('common.today')}</button>
                     <div className="view-toggle">
                         <button
                             onClick={() => setViewMode('month')}
                             className={`btn ${viewMode === 'month' ? 'btn-primary' : 'btn-ghost'}`}
                         >
-                            Monat
+                            {t('common.month')}
                         </button>
                         <button
                             onClick={() => setViewMode('week')}
                             className={`btn ${viewMode === 'week' ? 'btn-primary' : 'btn-ghost'}`}
                         >
-                            Woche
+                            {t('common.week')}
                         </button>
                     </div>
-                    <button className="btn btn-primary">+ Dienst</button>
+                    <button className="btn btn-primary">{t('calendar.addShift')}</button>
                 </div>
             </div>
 
@@ -115,11 +129,11 @@ function CalendarPage() {
             </div>
 
             <div className="shift-legend" style={{ marginTop: 'var(--space-lg)' }}>
-                <h3 style={{ marginBottom: 'var(--space-sm)' }}>Dienstarten (Pflege)</h3>
+                <h3 style={{ marginBottom: 'var(--space-sm)' }}>{t('calendar.shiftTypes')}</h3>
                 <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
                     {Object.values(SHIFT_TYPES).map(shift => (
                         <span key={shift.id} className={`shift-badge ${shift.cssClass}`}>
-                            {shift.shortName} - {shift.name}
+                            {shift.shortName} - {shiftTranslations[shift.id] || shift.name}
                             {shift.duration > 0 && ` (${shift.duration}h)`}
                         </span>
                     ))}

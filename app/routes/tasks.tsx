@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useI18n } from '~/lib/i18n'
 
 export const Route = createFileRoute('/tasks')({
     component: TasksPage,
@@ -16,11 +17,12 @@ interface Task {
 }
 
 const FAMILY_MEMBERS = [
-    { id: '1', name: 'You', emoji: '👤' },
-    { id: '2', name: 'Partner', emoji: '👩‍⚕️' },
+    { id: '1', name: 'You', nameDE: 'Du', emoji: '👤' },
+    { id: '2', name: 'Partner', nameDE: 'Partner', emoji: '👩‍⚕️' },
 ]
 
 function TasksPage() {
+    const { t, language } = useI18n()
     const [newTask, setNewTask] = useState('')
     const [tasks, setTasks] = useState<Task[]>([
         { id: '1', title: 'Take out trash', assignee: '1', completed: false, recurring: 'WEEKLY' },
@@ -55,7 +57,11 @@ function TasksPage() {
     const pendingTasks = tasks.filter(t => !t.completed)
     const completedTasks = tasks.filter(t => t.completed)
 
-    const getAssignee = (id?: string) => FAMILY_MEMBERS.find(m => m.id === id)
+    const getAssignee = (id?: string) => {
+        const member = FAMILY_MEMBERS.find(m => m.id === id)
+        if (!member) return null
+        return { ...member, displayName: language === 'de' ? member.nameDE : member.name }
+    }
 
     const formatDueDate = (date?: Date) => {
         if (!date) return null
@@ -63,18 +69,23 @@ function TasksPage() {
         const tomorrow = new Date(today)
         tomorrow.setDate(tomorrow.getDate() + 1)
 
-        if (date.toDateString() === today.toDateString()) return 'Today'
-        if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow'
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        if (date.toDateString() === today.toDateString()) return language === 'de' ? 'Heute' : 'Today'
+        if (date.toDateString() === tomorrow.toDateString()) return language === 'de' ? 'Morgen' : 'Tomorrow'
+        return date.toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US', { month: 'short', day: 'numeric' })
+    }
+
+    const recurringLabels: Record<string, Record<string, string>> = {
+        de: { DAILY: 'täglich', WEEKLY: 'wöchentlich', MONTHLY: 'monatlich' },
+        en: { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly' },
     }
 
     return (
         <div className="tasks-page">
             <div className="tasks-header">
-                <h1>✅ Tasks & Responsibilities</h1>
+                <h1>✅ {t('tasks.title')}</h1>
                 <div className="tasks-stats">
-                    <span className="stat">{pendingTasks.length} pending</span>
-                    <span className="stat">{completedTasks.length} done</span>
+                    <span className="stat">{pendingTasks.length} {language === 'de' ? 'offen' : 'pending'}</span>
+                    <span className="stat">{completedTasks.length} {language === 'de' ? 'erledigt' : 'done'}</span>
                 </div>
             </div>
 
@@ -82,16 +93,16 @@ function TasksPage() {
                 <input
                     type="text"
                     className="input"
-                    placeholder="Add a new task..."
+                    placeholder={t('tasks.addTask')}
                     value={newTask}
                     onChange={(e) => setNewTask(e.target.value)}
                 />
-                <button type="submit" className="btn btn-primary">Add Task</button>
+                <button type="submit" className="btn btn-primary">{t('common.add')}</button>
             </form>
 
             <div className="tasks-content">
                 <div className="tasks-section">
-                    <h2 className="section-title">📋 To Do</h2>
+                    <h2 className="section-title">📋 {t('tasks.todo')}</h2>
                     <div className="tasks-list">
                         {pendingTasks.map(task => (
                             <div key={task.id} className="task-item">
@@ -107,14 +118,14 @@ function TasksPage() {
                                         <div className="task-meta">
                                             {task.assignee && (
                                                 <span className="task-assignee">
-                                                    {getAssignee(task.assignee)?.emoji} {getAssignee(task.assignee)?.name}
+                                                    {getAssignee(task.assignee)?.emoji} {getAssignee(task.assignee)?.displayName}
                                                 </span>
                                             )}
                                             {task.dueDate && (
                                                 <span className="task-due">{formatDueDate(task.dueDate)}</span>
                                             )}
                                             {task.recurring && (
-                                                <span className="task-recurring">🔄 {task.recurring.toLowerCase()}</span>
+                                                <span className="task-recurring">🔄 {recurringLabels[language][task.recurring]}</span>
                                             )}
                                         </div>
                                     </div>
@@ -130,7 +141,7 @@ function TasksPage() {
                         {pendingTasks.length === 0 && (
                             <div className="empty-state">
                                 <div className="empty-state-icon">🎉</div>
-                                <p>All tasks completed!</p>
+                                <p>{t('dashboard.allCaughtUp')}</p>
                             </div>
                         )}
                     </div>
@@ -138,7 +149,7 @@ function TasksPage() {
 
                 {completedTasks.length > 0 && (
                     <div className="tasks-section completed-section">
-                        <h2 className="section-title">✅ Completed ({completedTasks.length})</h2>
+                        <h2 className="section-title">✅ {t('tasks.completed')} ({completedTasks.length})</h2>
                         <div className="tasks-list">
                             {completedTasks.map(task => (
                                 <div key={task.id} className="task-item completed">
@@ -165,20 +176,22 @@ function TasksPage() {
             </div>
 
             <div className="responsibilities-section card" style={{ marginTop: 'var(--space-xl)' }}>
-                <h2 className="card-title">👥 Weekly Responsibilities</h2>
+                <h2 className="card-title">👥 {t('tasks.weeklyResponsibilities')}</h2>
                 <div className="responsibilities-grid">
                     {FAMILY_MEMBERS.map(member => (
                         <div key={member.id} className="responsibility-card">
                             <div className="member-header">
                                 <span className="member-emoji">{member.emoji}</span>
-                                <span className="member-name">{member.name}</span>
+                                <span className="member-name">{language === 'de' ? member.nameDE : member.name}</span>
                             </div>
                             <div className="member-tasks">
                                 {tasks.filter(t => t.assignee === member.id && !t.completed).slice(0, 3).map(task => (
                                     <div key={task.id} className="mini-task">{task.title}</div>
                                 ))}
                                 {tasks.filter(t => t.assignee === member.id && !t.completed).length === 0 && (
-                                    <div className="mini-task empty">No tasks assigned</div>
+                                    <div className="mini-task empty">
+                                        {language === 'de' ? 'Keine Aufgaben zugewiesen' : 'No tasks assigned'}
+                                    </div>
                                 )}
                             </div>
                         </div>

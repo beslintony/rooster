@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useI18n } from '~/lib/i18n'
 
 export const Route = createFileRoute('/shopping')({
     component: ShoppingPage,
@@ -20,6 +21,7 @@ interface ShoppingItem {
 const CATEGORIES = ['🥬 Produce', '🥛 Dairy', '🥩 Meat', '🍞 Bakery', '🥫 Pantry', '🧹 Household', '✨ Other']
 
 function ShoppingPage() {
+    const { t, language } = useI18n()
     const [listType, setListType] = useState<ListType>('shopping')
     const [newItem, setNewItem] = useState('')
     const [items, setItems] = useState<ShoppingItem[]>([
@@ -66,19 +68,19 @@ function ShoppingPage() {
     return (
         <div className="shopping-page">
             <div className="shopping-header">
-                <h1>🛒 {listType === 'shopping' ? 'Shopping List' : 'Wish List'}</h1>
+                <h1>🛒 {listType === 'shopping' ? t('shopping.title') : t('shopping.wishlist')}</h1>
                 <div className="list-toggle">
                     <button
                         onClick={() => setListType('shopping')}
                         className={`btn ${listType === 'shopping' ? 'btn-primary' : 'btn-ghost'}`}
                     >
-                        Shopping
+                        {language === 'de' ? 'Einkaufen' : 'Shopping'}
                     </button>
                     <button
                         onClick={() => setListType('wishlist')}
                         className={`btn ${listType === 'wishlist' ? 'btn-primary' : 'btn-ghost'}`}
                     >
-                        Wish List
+                        {t('shopping.wishlist')}
                     </button>
                 </div>
             </div>
@@ -87,11 +89,11 @@ function ShoppingPage() {
                 <input
                     type="text"
                     className="input"
-                    placeholder="Add an item..."
+                    placeholder={t('shopping.addItem')}
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
                 />
-                <button type="submit" className="btn btn-primary">Add</button>
+                <button type="submit" className="btn btn-primary">{t('common.add')}</button>
             </form>
 
             <div className="shopping-content">
@@ -129,7 +131,7 @@ function ShoppingPage() {
 
                 {purchasedItems.length > 0 && (
                     <div className="category-group purchased-group">
-                        <h3 className="category-title">✅ Purchased ({purchasedItems.length})</h3>
+                        <h3 className="category-title">✅ {t('shopping.purchased')} ({purchasedItems.length})</h3>
                         <div className="items-list">
                             {purchasedItems.map(item => (
                                 <div key={item.id} className="shopping-item purchased">
@@ -157,7 +159,7 @@ function ShoppingPage() {
                 {items.length === 0 && (
                     <div className="empty-state">
                         <div className="empty-state-icon">🧺</div>
-                        <p>Your {listType === 'shopping' ? 'shopping' : 'wish'} list is empty</p>
+                        <p>{t('dashboard.shoppingEmpty')}</p>
                     </div>
                 )}
             </div>
