@@ -1,0 +1,12 @@
+services:
+  rooster:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=file:/app/data/rooster.db
+    restart: unless-stopped
