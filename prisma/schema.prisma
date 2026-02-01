@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 // Users in the family
@@ -11,8 +12,8 @@ model User {
   id              String    @id @default(cuid())
   email           String    @unique
   name            String
-  role            Role      @default(FAMILY_MEMBER)
-  workType        WorkType  @default(OFFICE)
+  role            String    @default("FAMILY_MEMBER") // ADMIN, FAMILY_MEMBER
+  workType        String    @default("OFFICE")        // NURSE_SHIFT, OFFICE, NONE
   googleAccountId String?
   refreshToken    String?
   createdAt       DateTime  @default(now())
@@ -31,7 +32,7 @@ model Shift {
   userId        String
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   date          DateTime
-  shiftType     ShiftType
+  shiftType     String    // EARLY, LATE, NIGHT, ON_CALL, DAY_OFF
   startTime     String    // "06:00"
   endTime       String    // "14:00"
   notes         String?
@@ -44,30 +45,30 @@ model Shift {
 
 // Shift templates for quick entry
 model ShiftTemplate {
-  id        String @id @default(cuid())
-  name      String // e.g., "Early", "Late", "Night"
-  startTime String // "06:00"
-  endTime   String // "14:00"
-  color     String // Hex color for display
+  id        String  @id @default(cuid())
+  name      String  // e.g., "Early", "Late", "Night"
+  startTime String  // "06:00"
+  endTime   String  // "14:00"
+  color     String  // Hex color for display
   isDefault Boolean @default(false)
 }
 
 // Tasks and responsibilities
 model Task {
-  id            String         @id @default(cuid())
+  id            String    @id @default(cuid())
   title         String
   description   String?
   assigneeId    String?
-  assignee      User?          @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  assignee      User?     @relation("AssignedTasks", fields: [assigneeId], references: [id])
   createdById   String
-  createdBy     User           @relation("CreatedTasks", fields: [createdById], references: [id])
+  createdBy     User      @relation("CreatedTasks", fields: [createdById], references: [id])
   dueDate       DateTime?
-  recurring     RecurringType?
-  completed     Boolean        @default(false)
+  recurring     String?   // DAILY, WEEKLY, MONTHLY
+  completed     Boolean   @default(false)
   completedAt   DateTime?
   googleEventId String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([assigneeId])
   @@index([dueDate])
@@ -75,89 +76,45 @@ model Task {
 
 // Shopping items
 model ShoppingItem {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   category    String?
-  quantity    Int      @default(1)
-  unit        String?  // "kg", "pieces", "liters"
-  priority    Priority @default(NORMAL)
-  purchased   Boolean  @default(false)
+  quantity    Int       @default(1)
+  unit        String?   // "kg", "pieces", "liters"
+  priority    String    @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  purchased   Boolean   @default(false)
   purchasedAt DateTime?
   addedById   String
-  addedBy     User     @relation(fields: [addedById], references: [id])
-  listType    ListType @default(SHOPPING)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  addedBy     User      @relation(fields: [addedById], references: [id])
+  listType    String    @default("SHOPPING") // SHOPPING, WISHLIST
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([listType, purchased])
 }
 
 // Vacation planning
 model Vacation {
-  id            String         @id @default(cuid())
+  id            String   @id @default(cuid())
   userId        String
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   startDate     DateTime
   endDate       DateTime
   title         String?
-  status        VacationStatus @default(PLANNED)
+  status        String   @default("PLANNED") // PLANNED, APPROVED, TAKEN
   googleEventId String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([userId, startDate])
 }
 
 // Sync tracking for Google Calendar
 model SyncState {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  syncToken     String?
-  lastSyncAt    DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-// Enums
-enum Role {
-  ADMIN
-  FAMILY_MEMBER
-}
-
-enum WorkType {
-  NURSE_SHIFT
-  OFFICE
-  NONE
-}
-
-enum ShiftType {
-  EARLY       // 06:00 - 14:00
-  LATE        // 14:00 - 22:00
-  NIGHT       // 22:00 - 06:00
-  ON_CALL
-  DAY_OFF
-}
-
-enum RecurringType {
-  DAILY
-  WEEKLY
-  MONTHLY
-}
-
-enum Priority {
-  LOW
-  NORMAL
-  HIGH
-  URGENT
-}
-
-enum ListType {
-  SHOPPING
-  WISHLIST
-}
-
-enum VacationStatus {
-  PLANNED
-  APPROVED
-  TAKEN
+  id         String    @id @default(cuid())
+  userId     String    @unique
+  syncToken  String?
+  lastSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
