@@ -1,6 +1,7 @@
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
 import { ThemeToggle } from '../components/ui/ThemeToggle'
 import { LanguageToggle } from '../components/ui/LanguageToggle'
+import { BottomNav } from '../components/ui/BottomNav'
 import { useI18n } from '../lib/i18n'
 import { useAuth } from '../lib/auth'
 
@@ -14,14 +15,12 @@ function RootComponent() {
 
     return (
         <div className="app">
-            <nav className="nav">
+            {/* Desktop Navigation */}
+            <nav className="nav desktop-nav">
                 <Link to="/" className="nav-brand" style={{ textDecoration: 'none' }}>
                     <span className="nav-logo">🐓</span>
                     <span className="nav-title">Rooster</span>
                 </Link>
-                <button className="mobile-menu-toggle" onClick={() => document.body.classList.toggle('mobile-menu-open')}>
-                    ☰
-                </button>
                 <div className="nav-links">
                     <Link to="/" className="nav-link" activeProps={{ className: 'nav-link active' }}>
                         {t('nav.dashboard')}
@@ -58,81 +57,34 @@ function RootComponent() {
                     )}
                 </div>
             </nav>
+
+            {/* Mobile Header */}
+            <header className="mobile-header">
+                <Link to="/" className="nav-brand" style={{ textDecoration: 'none' }}>
+                    <span className="nav-logo">🐓</span>
+                    <span className="nav-title">Rooster</span>
+                </Link>
+                <div className="mobile-header-actions">
+                    <LanguageToggle />
+                    <ThemeToggle />
+                    {!isLoading && isAuthenticated && (
+                        <Link to="/profile" className="user-avatar-sm">
+                            {user?.avatar ? (
+                                <img src={user.avatar} alt="" />
+                            ) : (
+                                <span>{(user?.displayName || user?.username || '?')[0].toUpperCase()}</span>
+                            )}
+                        </Link>
+                    )}
+                </div>
+            </header>
+
             <main className="main">
                 <Outlet />
             </main>
 
-            <style>{`
-        .nav-divider {
-          width: 1px;
-          height: 24px;
-          background: var(--bg-tertiary);
-          margin: 0 var(--space-sm);
-        }
-        .user-avatar {
-          width: 36px;
-          height: 36px;
-          border-radius: var(--radius-full);
-          background: var(--accent-primary);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-weight: 600;
-          font-size: 0.875rem;
-          overflow: hidden;
-          cursor: pointer;
-          transition: all var(--transition-fast);
-        }
-        .user-avatar:hover {
-          transform: scale(1.05);
-          box-shadow: 0 0 0 2px var(--accent-primary);
-        }
-        .user-avatar img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        .nav-icon-link {
-          font-size: 1.25rem;
-          opacity: 0.7;
-          transition: all var(--transition-fast);
-          text-decoration: none;
-        }
-        .nav-icon-link:hover {
-          opacity: 1;
-          transform: scale(1.1);
-        }
-        .mobile-menu-toggle {
-            display: none;
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: var(--text-primary);
-        }
-        @media (max-width: 768px) {
-            .nav-links {
-                display: none;
-                position: absolute;
-                top: 60px;
-                left: 0;
-                right: 0;
-                background: var(--bg-secondary);
-                flex-direction: column;
-                padding: var(--space-md);
-                border-bottom: 1px solid var(--bg-tertiary);
-                z-index: 100;
-            }
-            body.mobile-menu-open .nav-links {
-                display: flex;
-            }
-            .mobile-menu-toggle {
-                display: block;
-            }
-            .nav-divider { display: none; }
-        }
-      `}</style>
+            {/* Mobile Bottom Navigation */}
+            <BottomNav />
         </div>
     )
 }
