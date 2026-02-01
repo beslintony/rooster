@@ -17,6 +17,7 @@ export function BottomNav() {
         { to: '/calendar', icon: '📅', label: t('nav.calendar') },
         { to: '/shopping', icon: '🛒', label: t('nav.shopping') },
         { to: '/tasks', icon: '✅', label: t('nav.tasks') },
+        { to: '/profile', icon: '⚙️', label: 'Settings' },
     ]
 
     const isActive = (path: string) => {
