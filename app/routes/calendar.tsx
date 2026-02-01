@@ -20,6 +20,18 @@ interface Shift {
     visibility?: string
 }
 
+interface ShiftTemplate {
+    id: string
+    name: string
+    shortName: string
+    startTime: string | null
+    endTime: string | null
+    duration: number | null
+    color: string
+    isDefault?: boolean
+    cssClass?: string
+}
+
 interface ConnectedUser {
     id: string
     username: string
@@ -48,6 +60,7 @@ function CalendarPage() {
     const [selectedShiftType, setSelectedShiftType] = useState('')
     const [editingShiftId, setEditingShiftId] = useState<string | null>(null)
     const [shifts, setShifts] = useState<Shift[]>([])
+    const [customTemplates, setCustomTemplates] = useState<ShiftTemplate[]>([])
 
     const DAYS = getDays(language)
     const MONTHS = getMonths(language)
@@ -64,8 +77,19 @@ function CalendarPage() {
         if (isAuthenticated) {
             fetchConnectedUsers()
             fetchShifts()
+            fetchTemplates()
         }
     }, [isAuthenticated])
+
+    const fetchTemplates = async () => {
+        try {
+            const res = await fetch('/api/users/shift-templates', { credentials: 'include' })
+            if (res.ok) {
+                const data = await res.json()
+                setCustomTemplates(data.templates)
+            }
+        } catch (e) { console.error(e) }
+    }
 
     const fetchShifts = async () => {
         try {
@@ -322,6 +346,29 @@ function CalendarPage() {
         FLEXIBEL: t('shift.flexibel'),
     }
 
+    // Merge defaults with custom templates
+    const getAllShiftTypes = () => {
+        const defaults = Object.values(SHIFT_TYPES).map(s => ({
+            ...s,
+            isDefault: true
+        }))
+        // Custom templates override defaults if needed, or append
+        // We'll just append for now.
+        // Map custom templates to match shape if needed
+        const custom = customTemplates.map(t => ({
+            ...t,
+            id: t.id, // Custom ID
+            // use custom color logic later
+        }))
+
+        return [...defaults, ...custom]
+    }
+    const allShiftTypes = getAllShiftTypes()
+
+    const getShiftInfo = (typeId: string) => {
+        return allShiftTypes.find(s => s.id === typeId) || SHIFT_TYPES[typeId as keyof typeof SHIFT_TYPES]
+    }
+
     // Header Date Label
     const headerLabel = viewMode === 'month'
         ? `${MONTHS[month]} ${year}`
@@ -431,14 +478,19 @@ function CalendarPage() {
                                                 )}
                                                 <div className="day-shifts">
                                                     {dayShifts.map(shift => {
-                                                        const shiftInfo = SHIFT_TYPES[shift.type as keyof typeof SHIFT_TYPES]
-                                                        const timeLabel = shiftInfo?.startTime
+                                                        const shiftInfo = getShiftInfo(shift.type)
+                                                        // Handle null checking for start/end time
+                                                        const timeLabel = shiftInfo?.startTime && shiftInfo?.endTime
                                                             ? `${shiftInfo.startTime}-${shiftInfo.endTime}`
                                                             : null
+
+                                                        const style = shiftInfo?.cssClass ? {} : { backgroundColor: shiftInfo?.color || '#22c55e', color: '#fff' }
+
                                                         return (
                                                             <div
                                                                 key={shift.id}
                                                                 className={`shift-chip ${shiftInfo?.cssClass || ''}`}
+                                                                style={style}
                                                                 onClick={(e) => { e.stopPropagation(); editShift(shift) }}
                                                                 title={timeLabel ? `${shiftInfo?.name} (${timeLabel})` : shiftInfo?.name}
                                                             >
@@ -459,14 +511,17 @@ function CalendarPage() {
                     <div className="shift-legend">
                         <h3>{t('calendar.shiftTypes')}</h3>
                         <div className="shift-list">
-                            {Object.values(SHIFT_TYPES).map(shift => {
-                                const timeLabel = shift.startTime ? `(${shift.startTime} - ${shift.endTime})` : ''
-                                return (
-                                    <span key={shift.id} className={`shift-badge ${shift.cssClass}`}>
-                                        <strong>{shift.shortName}</strong> {shiftTranslations[shift.id] || shift.name} {timeLabel}
-                                    </span>
-                                )
-                            })}
+                            <div className="shift-list">
+                                {allShiftTypes.map(shift => {
+                                    const timeLabel = shift.startTime ? `(${shift.startTime} - ${shift.endTime})` : ''
+                                    const style = shift.cssClass ? {} : { backgroundColor: shift.color, color: '#fff', padding: '2px 8px', borderRadius: '4px' }
+                                    return (
+                                        <span key={shift.id} className={`shift-badge ${shift.cssClass || ''}`} style={style}>
+                                            <strong>{shift.shortName}</strong> {shiftTranslations[shift.id] || shift.name} {timeLabel}
+                                        </span>
+                                    )
+                                })}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -486,24 +541,34 @@ function CalendarPage() {
                             </span>
                         </h3>
                         <div className="shift-options">
-                            {Object.values(SHIFT_TYPES).map(shift => {
-                                const isActive = selectedShiftType === shift.id
-                                return (
-                                    <button
-                                        key={shift.id}
-                                        onClick={() => setSelectedShiftType(shift.id)}
-                                        className={`shift-option ${shift.cssClass} ${isActive ? 'selected' : ''}`}
-                                    >
-                                        <span className="shift-short">{shift.shortName}</span>
-                                        <span className="shift-name">{shiftTranslations[shift.id] || shift.name}</span>
-                                        {shift.startTime ? (
-                                            <span className="shift-time">{shift.startTime} - {shift.endTime}</span>
-                                        ) : (
-                                            shift.duration > 0 && <span className="shift-duration">{shift.duration}h</span> || <span className="shift-duration">-</span>
-                                        )}
-                                    </button>
-                                )
-                            })}
+                            <div className="shift-options">
+                                {allShiftTypes.map(shift => {
+                                    const isActive = selectedShiftType === shift.id
+                                    const style = shift.cssClass ? {} : { borderColor: shift.color, backgroundColor: isActive ? `${shift.color}20` : 'transparent' } // Light bg if active logic needs more refined inline styles for custom
+                                    // Actually, let's use the color for the border/text if custom
+                                    const customStyle = !shift.cssClass ? {
+                                        border: `2px solid ${shift.color}`,
+                                        backgroundColor: isActive ? `${shift.color}33` : 'transparent'
+                                    } : {}
+
+                                    return (
+                                        <button
+                                            key={shift.id}
+                                            onClick={() => setSelectedShiftType(shift.id)}
+                                            className={`shift-option ${shift.cssClass || ''} ${isActive ? 'selected' : ''}`}
+                                            style={customStyle}
+                                        >
+                                            <span className="shift-short" style={!shift.cssClass ? { color: shift.color, fontWeight: 'bold' } : {}}>{shift.shortName}</span>
+                                            <span className="shift-name">{shiftTranslations[shift.id] || shift.name}</span>
+                                            {shift.startTime ? (
+                                                <span className="shift-time">{shift.startTime} - {shift.endTime}</span>
+                                            ) : (
+                                                shift.duration && shift.duration > 0 && <span className="shift-duration">{shift.duration}h</span> || <span className="shift-duration">-</span>
+                                            )}
+                                        </button>
+                                    )
+                                })}
+                            </div>
                         </div>
                         <div className="modal-actions">
                             {editingShiftId && (

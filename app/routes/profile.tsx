@@ -25,6 +25,15 @@ const OCCUPATION_TYPES = [
   { id: 'FLEXIBEL', labelDE: 'Flexibel / Freelance', labelEN: 'Flexible / Freelance' },
 ]
 
+interface ShiftTemplate {
+  id: string
+  name: string
+  shortName: string
+  startTime: string
+  endTime: string
+  color: string
+}
+
 function ProfilePage() {
   const { user, logout, updateUser } = useAuth()
   const { language, setLanguage } = useI18n()
@@ -37,6 +46,13 @@ function ProfilePage() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
+
+  // Custom Shift Templates
+  const [templates, setTemplates] = useState<ShiftTemplate[]>([])
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [newTemplate, setNewTemplate] = useState<Partial<ShiftTemplate>>({
+    name: '', shortName: '', startTime: '', endTime: '', color: '#3b82f6'
+  })
 
   useEffect(() => {
     // Load theme from localStorage
@@ -51,6 +67,48 @@ function ProfilePage() {
       // Assuming implementation details, likely need to handle watchedStates
     }
   }, [user])
+
+  // Fetch Templates
+  useEffect(() => {
+    if (user) {
+      fetchTemplates()
+    }
+  }, [user])
+
+  const fetchTemplates = async () => {
+    try {
+      const res = await fetch('/api/users/shift-templates', { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setTemplates(data.templates)
+      }
+    } catch (e) { console.error(e) }
+  }
+
+  const saveTemplate = async () => {
+    try {
+      const res = await fetch('/api/users/shift-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTemplate)
+      })
+      if (res.ok) {
+        fetchTemplates()
+        setShowTemplateModal(false)
+        setNewTemplate({ name: '', shortName: '', startTime: '', endTime: '', color: '#3b82f6' })
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const deleteTemplate = async (id: string) => {
+    if (!confirm(language === 'de' ? 'Wirklich löschen?' : 'Delete template?')) return
+    try {
+      await fetch(`/api/users/shift-templates/${id}`, { method: 'DELETE' })
+      fetchTemplates()
+    } catch (e) { console.error(e) }
+  }
 
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme)
@@ -242,6 +300,31 @@ function ProfilePage() {
         </div>
       </section>
 
+      {/* Shift Templates */}
+      <section className="settings-section card">
+        <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)', borderBottom: '1px solid var(--bg-tertiary)', paddingBottom: 'var(--space-sm)' }}>
+          <h2 className="section-title" style={{ border: 'none', margin: 0, padding: 0 }}>⏰ {language === 'de' ? 'Eigene Schichten' : 'Shift Templates'}</h2>
+          <button className="btn btn-secondary btn-sm" onClick={() => setShowTemplateModal(true)}>
+            + {language === 'de' ? 'Neu' : 'New'}
+          </button>
+        </div>
+
+        <div className="templates-list">
+          {templates.length === 0 && <p className="description-text">{language === 'de' ? 'Keine eigenen Schichten definiert.' : 'No custom templates defined.'}</p>}
+          {templates.map(t => (
+            <div key={t.id} className="template-item card" style={{ padding: 'var(--space-sm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-tertiary)' }}>
+              <div className="template-info" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                <div className="template-color-dot" style={{ width: 16, height: 16, borderRadius: '50%', background: t.color }}></div>
+                <strong>{t.shortName}</strong>
+                <span>{t.name}</span>
+                <span style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>{t.startTime}-{t.endTime}</span>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => deleteTemplate(t.id)}>🗑️</button>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Appearance */}
       <section className="settings-section card">
         <h2 className="section-title">🎨 {language === 'de' ? 'Darstellung' : 'Appearance'}</h2>
@@ -298,6 +381,42 @@ function ProfilePage() {
           {language === 'de' ? 'Abmelden' : 'Sign Out'}
         </button>
       </div>
+
+      {showTemplateModal && (
+        <div className="modal-overlay" onClick={() => setShowTemplateModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>{language === 'de' ? 'Neue Schichtvorlage' : 'New Shift Template'}</h3>
+            <div className="form-group">
+              <label>{language === 'de' ? 'Name' : 'Name'}</label>
+              <input className="input" value={newTemplate.name} onChange={e => setNewTemplate({ ...newTemplate, name: e.target.value })} placeholder="e.g. Late Shift" />
+            </div>
+            <div className="form-group" style={{ display: 'flex', gap: '1rem' }}>
+              <div style={{ flex: 1 }}>
+                <label>{language === 'de' ? 'Kürzel' : 'Short Code'}</label>
+                <input className="input" value={newTemplate.shortName} onChange={e => setNewTemplate({ ...newTemplate, shortName: e.target.value })} placeholder="e.g. L" maxLength={3} />
+              </div>
+              <div>
+                <label>{language === 'de' ? 'Farbe' : 'Color'}</label>
+                <input type="color" className="input" style={{ height: 42, padding: 2 }} value={newTemplate.color} onChange={e => setNewTemplate({ ...newTemplate, color: e.target.value })} />
+              </div>
+            </div>
+            <div className="form-group" style={{ display: 'flex', gap: '1rem' }}>
+              <div style={{ flex: 1 }}>
+                <label>{language === 'de' ? 'Start' : 'Start'}</label>
+                <input type="time" className="input" value={newTemplate.startTime} onChange={e => setNewTemplate({ ...newTemplate, startTime: e.target.value })} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label>{language === 'de' ? 'Ende' : 'End'}</label>
+                <input type="time" className="input" value={newTemplate.endTime} onChange={e => setNewTemplate({ ...newTemplate, endTime: e.target.value })} />
+              </div>
+            </div>
+            <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
+              <button className="btn btn-ghost" onClick={() => setShowTemplateModal(false)}>{language === 'de' ? 'Abbrechen' : 'Cancel'}</button>
+              <button className="btn btn-primary" onClick={saveTemplate}>{language === 'de' ? 'Speichern' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .profile-page { max-width: 700px; margin: 0 auto; }
@@ -378,6 +497,6 @@ function ProfilePage() {
           font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-md); 
         }
       `}</style>
-    </div>
+    </div >
   )
 }

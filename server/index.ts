@@ -705,6 +705,83 @@ app.get('/api/dashboard/stats', authMiddleware, async (req: AuthRequest, res) =>
     }
 })
 
+// ============ SHIFT TEMPLATES ============
+
+app.get('/api/users/shift-templates', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const templates = await prisma.shiftTemplate.findMany({
+            where: { userId: req.user!.id },
+            orderBy: { name: 'asc' }
+        })
+        res.json({ templates })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch templates' })
+    }
+})
+
+app.post('/api/users/shift-templates', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { name, shortName, startTime, endTime, duration, color } = req.body
+        const template = await prisma.shiftTemplate.create({
+            data: {
+                userId: req.user!.id,
+                name,
+                shortName,
+                startTime,
+                endTime,
+                duration: duration ? parseInt(duration) : null,
+                color
+            }
+        })
+        res.json({ template })
+    } catch (error) {
+        console.error('Create template error:', error)
+        res.status(500).json({ error: 'Failed to create template' })
+    }
+})
+
+app.put('/api/users/shift-templates/:id', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { id } = req.params
+        const { name, shortName, startTime, endTime, duration, color } = req.body
+
+        const existing = await prisma.shiftTemplate.findUnique({ where: { id } })
+        if (!existing || existing.userId !== req.user!.id) {
+            return res.status(403).json({ error: 'Not authorized' })
+        }
+
+        const template = await prisma.shiftTemplate.update({
+            where: { id },
+            data: {
+                name,
+                shortName,
+                startTime,
+                endTime,
+                duration: duration ? parseInt(duration) : null,
+                color
+            }
+        })
+        res.json({ template })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update template' })
+    }
+})
+
+app.delete('/api/users/shift-templates/:id', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { id } = req.params
+        const existing = await prisma.shiftTemplate.findUnique({ where: { id } })
+        if (!existing || existing.userId !== req.user!.id) {
+            return res.status(403).json({ error: 'Not authorized' })
+        }
+
+        await prisma.shiftTemplate.delete({ where: { id } })
+        res.json({ success: true })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete template' })
+    }
+})
+
 // Start server
 app.listen(PORT, () => {
     console.log(`🐓 Rooster API running on port ${PORT}`)
