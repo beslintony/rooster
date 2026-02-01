@@ -581,22 +581,24 @@ function CalendarPage() {
                         </div>
                     </div>
 
-                    <div className="shift-legend">
-                        <h3>{t('calendar.shiftTypes')}</h3>
+                    {/* Collapsible Legend - hidden by default on mobile */}
+                    <details className="shift-legend" open>
+                        <summary className="legend-toggle">
+                            <span className="legend-title">{t('calendar.shiftTypes')}</span>
+                            <span className="legend-chevron">▼</span>
+                        </summary>
                         <div className="shift-list">
-                            <div className="shift-list">
-                                {allShiftTypes.map(shift => {
-                                    const timeLabel = shift.startTime ? `(${shift.startTime} - ${shift.endTime})` : ''
-                                    const style = shift.cssClass ? {} : { backgroundColor: shift.color, color: '#fff', padding: '2px 8px', borderRadius: '4px' }
-                                    return (
-                                        <span key={shift.id} className={`shift-badge ${shift.cssClass || ''}`} style={style}>
-                                            <strong>{shift.shortName}</strong> {shiftTranslations[shift.id] || shift.name} {timeLabel}
-                                        </span>
-                                    )
-                                })}
-                            </div>
+                            {allShiftTypes.map(shift => {
+                                const timeLabel = shift.startTime ? `${shift.startTime}-${shift.endTime}` : ''
+                                const style = shift.cssClass ? {} : { backgroundColor: shift.color, color: '#fff' }
+                                return (
+                                    <span key={shift.id} className={`shift-badge ${shift.cssClass || ''}`} style={style}>
+                                        <strong>{shift.shortName}</strong> {timeLabel}
+                                    </span>
+                                )
+                            })}
                         </div>
-                    </div>
+                    </details>
                 </div>
             </div>
 
@@ -853,34 +855,77 @@ function CalendarPage() {
                 .spacer { flex: 1; }
                 .btn-delete { color: var(--accent-danger); }
                 .btn-delete:hover { background: rgba(239, 68, 68, 0.1); }
+                
+                /* Collapsible Legend */
+                .shift-legend {
+                    margin-top: var(--space-md);
+                    background: var(--bg-secondary);
+                    border: 1px solid var(--bg-tertiary);
+                    border-radius: var(--radius-md);
+                    overflow: hidden;
+                }
+                .legend-toggle {
+                    display: flex; align-items: center; justify-content: space-between;
+                    padding: var(--space-sm) var(--space-md);
+                    cursor: pointer; user-select: none;
+                    background: var(--bg-tertiary);
+                    list-style: none;
+                }
+                .legend-toggle::-webkit-details-marker { display: none; }
+                .legend-title { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
+                .legend-chevron { 
+                    font-size: 0.6rem; color: var(--text-muted);
+                    transition: transform 0.2s;
+                }
+                .shift-legend[open] .legend-chevron { transform: rotate(180deg); }
+                .shift-list {
+                    display: flex; flex-wrap: wrap; gap: 6px;
+                    padding: var(--space-sm) var(--space-md);
+                }
+                .shift-badge {
+                    display: inline-flex; align-items: center; gap: 4px;
+                    padding: 3px 8px; border-radius: 4px;
+                    font-size: 0.7rem; white-space: nowrap;
+                }
 
                 /* Mobile Responsive */
                 @media (max-width: 768px) {
+                    .calendar-page { padding-bottom: 0; }
+                    
                     .calendar-header { 
                         flex-direction: column; align-items: stretch; 
-                        gap: var(--space-sm); margin-bottom: var(--space-sm);
+                        gap: var(--space-xs); margin-bottom: var(--space-xs);
+                        padding: 0 var(--space-xs);
                     }
-                    .calendar-nav { justify-content: center; }
-                    .calendar-nav h1 { font-size: 1.25rem; min-width: auto; }
-                    .calendar-controls { justify-content: center; }
+                    .calendar-nav { justify-content: center; gap: var(--space-xs); }
+                    .calendar-nav h1 { font-size: 1.1rem; min-width: auto; }
+                    .btn-icon { width: 36px; height: 36px; font-size: 1rem; }
+                    .calendar-controls { justify-content: center; gap: var(--space-xs); }
+                    .view-toggle { padding: 2px; }
+                    .toggle-btn { padding: 4px 10px; font-size: 0.7rem; }
                     
-                    .calendar-toolbar { 
-                        display: none; /* Hide on mobile for cleaner UI */
-                    }
-                    
-                    .calendar-layout { flex-direction: column; }
+                    .calendar-toolbar { display: none; }
+                    .calendar-layout { flex-direction: column; gap: var(--space-sm); }
                     .team-panel { width: 100%; }
                     
-                    .calendar-grid { border-radius: var(--radius-md); }
-                    .calendar-day-header { padding: 6px; font-size: 0.6rem; }
-                    .calendar-day { min-height: 70px; padding: 4px; }
-                    .day-number { width: 22px; height: 22px; font-size: 0.75rem; margin-bottom: 4px; }
-                    .holiday-badge { font-size: 0.5rem; padding: 1px 3px; }
+                    .calendar-grid { border-radius: var(--radius-sm); }
+                    .calendar-day-header { padding: 4px 2px; font-size: 0.55rem; letter-spacing: 0; }
+                    .calendar-day { min-height: 56px; padding: 2px; }
+                    .day-number { width: 18px; height: 18px; font-size: 0.65rem; margin-bottom: 2px; }
+                    .holiday-badge { display: none; } /* Hide on mobile to save space */
                     .shift-chip { 
-                        padding: 3px 5px; font-size: 0.65rem; 
-                        justify-content: center;
+                        padding: 2px 4px; font-size: 0.6rem; 
+                        justify-content: center; border-radius: 3px;
                     }
-                    .shift-chip .shift-time-display { display: none; }
+                    .shift-chip-time { display: none; }
+                    
+                    /* Collapsed legend on mobile */
+                    .shift-legend { margin-top: var(--space-sm); }
+                    .shift-legend:not([open]) { margin-bottom: 0; }
+                    .legend-toggle { padding: var(--space-xs) var(--space-sm); }
+                    .legend-title { font-size: 0.7rem; }
+                    .shift-list { padding: var(--space-xs) var(--space-sm); gap: 4px; }
+                    .shift-badge { padding: 2px 6px; font-size: 0.6rem; }
                     
                     .shift-options { grid-template-columns: 1fr; }
                     .shift-option { padding: 10px; }
