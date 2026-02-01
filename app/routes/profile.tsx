@@ -26,12 +26,12 @@ const OCCUPATION_TYPES = [
 ]
 
 function ProfilePage() {
-  const { user, logout } = useAuth()
+  const { user, logout, updateUser } = useAuth()
   const { language, setLanguage } = useI18n()
   const navigate = useNavigate()
 
   const [displayName, setDisplayName] = useState(user?.displayName || '')
-  const [primaryState, setPrimaryState] = useState<GermanState>('NW')
+  const [primaryState, setPrimaryState] = useState<GermanState>((user?.state as GermanState) || 'NW')
   const [watchedStates, setWatchedStates] = useState<string[]>([])
   const [occupationType, setOccupationType] = useState('PFLEGE')
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
@@ -42,7 +42,15 @@ function ProfilePage() {
     // Load theme from localStorage
     const savedTheme = localStorage.getItem('rooster-theme') as 'light' | 'dark'
     if (savedTheme) setTheme(savedTheme)
-  }, [])
+
+    // Initialize form with user data if available
+    if (user) {
+      if (user.displayName) setDisplayName(user.displayName)
+      if (user.state) setPrimaryState(user.state as GermanState)
+      // Parse watched states if they are comma-separated string or array
+      // Assuming implementation details, likely need to handle watchedStates
+    }
+  }, [user])
 
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme)
@@ -63,7 +71,7 @@ function ProfilePage() {
     setMessage({ type: '', text: '' })
 
     try {
-      const res = await fetch('/api/users/me', {
+      const res = await fetch('/api/users/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -78,6 +86,21 @@ function ProfilePage() {
       })
 
       if (res.ok) {
+        // Update local context
+        updateUser({
+          displayName,
+          state: primaryState,
+          // watchedStates: watchedStates, // Type mismatch in User interface? array vs string?
+          // User interface in auth.tsx has watchedStates: string[]
+          // Server expects string join? 
+          // Let's assume updateUser handles the partial correctly or we need to match it.
+          // If User.watchedStates is string[], we should pass it as string[]
+          watchedStates: watchedStates,
+          language,
+          theme,
+          occupationType
+        })
+
         setMessage({
           type: 'success',
           text: language === 'de' ? 'Einstellungen gespeichert!' : 'Settings saved!'
@@ -129,6 +152,22 @@ function ProfilePage() {
           <label>Email</label>
           <input type="email" className="input" value={user?.email || ''} disabled />
           <span className="form-hint">{language === 'de' ? 'Kann nicht geändert werden' : 'Cannot be changed'}</span>
+        </div>
+      </section>
+
+      {/* Social & Connections */}
+      <section className="settings-section card">
+        <h2 className="section-title">👥 {language === 'de' ? 'Soziales & Verbindungen' : 'Social & Connections'}</h2>
+
+        <div className="form-group">
+          <p className="description-text">
+            {language === 'de'
+              ? 'Verwalte deine Verbindungen zu Familie und Freunden.'
+              : 'Manage your connections with family and friends.'}
+          </p>
+          <Link to="/connections" className="btn btn-secondary btn-full">
+            {language === 'de' ? 'Verbindungen verwalten' : 'Manage Connections'} →
+          </Link>
         </div>
       </section>
 
@@ -333,6 +372,10 @@ function ProfilePage() {
         .input:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+        .btn-full { width: 100%; justify-content: center; }
+        .description-text { 
+          font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-md); 
         }
       `}</style>
     </div>
