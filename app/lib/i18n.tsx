@@ -83,6 +83,7 @@ export const translations = {
         'shopping.addItem': 'Artikel hinzufügen...',
         'shopping.purchased': 'Gekauft',
         'shopping.wishlist': 'Wunschliste',
+        'shopping.emptyList': 'Deine Einkaufsliste ist leer',
 
         // Tasks
         'tasks.title': 'Aufgaben',
@@ -170,6 +171,7 @@ export const translations = {
         'shopping.addItem': 'Add item...',
         'shopping.purchased': 'Purchased',
         'shopping.wishlist': 'Wishlist',
+        'shopping.emptyList': 'Your shopping list is empty',
 
         // Tasks
         'tasks.title': 'Tasks',
