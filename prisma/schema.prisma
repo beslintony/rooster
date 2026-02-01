@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../data/rooster.db"
+}
+
+// Users in the family
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  role            Role      @default(FAMILY_MEMBER)
+  workType        WorkType  @default(OFFICE)
+  googleAccountId String?
+  refreshToken    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  shifts        Shift[]
+  tasks         Task[]       @relation("AssignedTasks")
+  createdTasks  Task[]       @relation("CreatedTasks")
+  shoppingItems ShoppingItem[]
+  vacations     Vacation[]
+}
+
+// Shift schedule for nurses
+model Shift {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime
+  shiftType     ShiftType
+  startTime     String    // "06:00"
+  endTime       String    // "14:00"
+  notes         String?
+  googleEventId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, date])
+}
+
+// Shift templates for quick entry
+model ShiftTemplate {
+  id        String @id @default(cuid())
+  name      String // e.g., "Early", "Late", "Night"
+  startTime String // "06:00"
+  endTime   String // "14:00"
+  color     String // Hex color for display
+  isDefault Boolean @default(false)
+}
+
+// Tasks and responsibilities
+model Task {
+  id            String         @id @default(cuid())
+  title         String
+  description   String?
+  assigneeId    String?
+  assignee      User?          @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  createdById   String
+  createdBy     User           @relation("CreatedTasks", fields: [createdById], references: [id])
+  dueDate       DateTime?
+  recurring     RecurringType?
+  completed     Boolean        @default(false)
+  completedAt   DateTime?
+  googleEventId String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([assigneeId])
+  @@index([dueDate])
+}
+
+// Shopping items
+model ShoppingItem {
+  id          String   @id @default(cuid())
+  name        String
+  category    String?
+  quantity    Int      @default(1)
+  unit        String?  // "kg", "pieces", "liters"
+  priority    Priority @default(NORMAL)
+  purchased   Boolean  @default(false)
+  purchasedAt DateTime?
+  addedById   String
+  addedBy     User     @relation(fields: [addedById], references: [id])
+  listType    ListType @default(SHOPPING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([listType, purchased])
+}
+
+// Vacation planning
+model Vacation {
+  id            String         @id @default(cuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate     DateTime
+  endDate       DateTime
+  title         String?
+  status        VacationStatus @default(PLANNED)
+  googleEventId String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([userId, startDate])
+}
+
+// Sync tracking for Google Calendar
+model SyncState {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  syncToken     String?
+  lastSyncAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Enums
+enum Role {
+  ADMIN
+  FAMILY_MEMBER
+}
+
+enum WorkType {
+  NURSE_SHIFT
+  OFFICE
+  NONE
+}
+
+enum ShiftType {
+  EARLY       // 06:00 - 14:00
+  LATE        // 14:00 - 22:00
+  NIGHT       // 22:00 - 06:00
+  ON_CALL
+  DAY_OFF
+}
+
+enum RecurringType {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ListType {
+  SHOPPING
+  WISHLIST
+}
+
+enum VacationStatus {
+  PLANNED
+  APPROVED
+  TAKEN
+}
