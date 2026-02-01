@@ -67,14 +67,20 @@ function RootComponent() {
                 <div className="mobile-header-actions">
                     <LanguageToggle />
                     <ThemeToggle />
-                    {!isLoading && isAuthenticated && (
-                        <Link to="/profile" className="user-avatar-sm">
-                            {user?.avatar ? (
-                                <img src={user.avatar} alt="" />
-                            ) : (
-                                <span>{(user?.displayName || user?.username || '?')[0].toUpperCase()}</span>
-                            )}
-                        </Link>
+                    {!isLoading && (
+                        isAuthenticated ? (
+                            <Link to="/profile" className="user-avatar-sm">
+                                {user?.avatar ? (
+                                    <img src={user.avatar} alt="" />
+                                ) : (
+                                    <span>{(user?.displayName || user?.username || '?')[0].toUpperCase()}</span>
+                                )}
+                            </Link>
+                        ) : (
+                            <Link to="/login" className="btn btn-primary btn-sm">
+                                {language === 'de' ? 'Anmelden' : 'Sign In'}
+                            </Link>
+                        )
                     )}
                 </div>
             </header>
