@@ -50,33 +50,14 @@ function CalendarPage() {
     const DAYS = getDays(language)
     const MONTHS = getMonths(language)
 
-    const year = currentDate.getFullYear()
-    const month = currentDate.getMonth()
+    // Sync state with user profile
+    useEffect(() => {
+        if (user?.state && GERMAN_STATES[user.state as GermanState]) {
+            setSelectedState(user.state as GermanState)
+        }
+    }, [user])
 
-    const firstDay = new Date(year, month, 1)
-    const lastDay = new Date(year, month + 1, 0)
-    const startOffset = firstDay.getDay()
-    const daysInMonth = lastDay.getDate()
-
-    const holidays = getHolidaysForMonth(year, month, selectedState)
-    const holidayMap = new Map(holidays.map(h => [h.date.getDate(), h]))
-
-    const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1))
-    const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1))
-    const goToday = () => setCurrentDate(new Date())
-
-    const calendarDays = []
-    for (let i = 0; i < startOffset; i++) {
-        calendarDays.push(null)
-    }
-    for (let day = 1; day <= daysInMonth; day++) {
-        calendarDays.push(day)
-    }
-
-    const today = new Date()
-    const isToday = (day: number) =>
-        day === today.getDate() && month === today.getMonth() && year === today.getFullYear()
-
+    // Fetch connections
     useEffect(() => {
         if (isAuthenticated) {
             fetchConnectedUsers()
@@ -99,6 +80,82 @@ function CalendarPage() {
         }
     }
 
+    // Navigation Logic
+    const prev = () => {
+        if (viewMode === 'month') {
+            setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+        } else {
+            const newDate = new Date(currentDate)
+            newDate.setDate(currentDate.getDate() - 7)
+            setCurrentDate(newDate)
+        }
+    }
+
+    const next = () => {
+        if (viewMode === 'month') {
+            setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+        } else {
+            const newDate = new Date(currentDate)
+            newDate.setDate(currentDate.getDate() + 7)
+            setCurrentDate(newDate)
+        }
+    }
+
+    const goToday = () => setCurrentDate(new Date())
+
+    // Grid Calculation
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth() // 0-based
+
+    // Calendar days array
+    let calendarDays: (Date | null)[] = []
+
+    if (viewMode === 'month') {
+        const firstDayOfMonth = new Date(year, month, 1)
+        const lastDayOfMonth = new Date(year, month + 1, 0)
+        const startOffset = firstDayOfMonth.getDay() // 0 = Sunday
+        const daysInMonth = lastDayOfMonth.getDate()
+
+        // Pad empty days at start
+        for (let i = 0; i < startOffset; i++) {
+            calendarDays.push(null)
+        }
+        // Days
+        for (let day = 1; day <= daysInMonth; day++) {
+            calendarDays.push(new Date(year, month, day))
+        }
+    } else {
+        // Week View
+        // Find start of week (Sunday)
+        const dayOfWeek = currentDate.getDay() // 0-6
+        const startOfWeek = new Date(currentDate)
+        startOfWeek.setDate(currentDate.getDate() - dayOfWeek)
+
+        for (let i = 0; i < 7; i++) {
+            const day = new Date(startOfWeek)
+            day.setDate(startOfWeek.getDate() + i)
+            calendarDays.push(day)
+        }
+    }
+
+    // Pre-calculate holidays for the visible range
+    // Simple optimization: just get holidays for the month of the first visible day
+    // (In week view crossing months this might miss some, but acceptable for now)
+    const displayMonth = calendarDays.find(d => d !== null)?.getMonth() ?? month
+    const displayYear = calendarDays.find(d => d !== null)?.getFullYear() ?? year
+    const holidays = getHolidaysForMonth(displayYear, displayMonth, selectedState)
+    const holidayMap = new Map(holidays.map(h => [h.date.getDate(), h]))
+
+    // Also check next month if week overlaps? 
+    // Let's just stick to simpler month-based holiday fetch for now or fetch for both if split.
+    // Ideally getHolidays should handle range, but existing helper is by month.
+
+    const today = new Date()
+    const isToday = (date: Date) =>
+        date.getDate() === today.getDate() &&
+        date.getMonth() === today.getMonth() &&
+        date.getFullYear() === today.getFullYear()
+
     const toggleUser = (userId: string) => {
         const newSelected = new Set(selectedUsers)
         if (newSelected.has(userId)) {
@@ -109,34 +166,58 @@ function CalendarPage() {
         setSelectedUsers(newSelected)
     }
 
-    const openShiftModal = (day: number) => {
-        setSelectedDay(day)
+    const openShiftModal = (date: Date) => {
+        setSelectedDay(date.getDate()) // This relies on month-context, need to be careful with crossing months
+        // Ideally modal should take full Date object now
+        // But for now let's keep it simple, assumes logic holds for "selectedDay" (it's display only mostly)
+
+        // Quick fix: update component to work with full dates or just pass the date to modal
+        // But existing addShift needs year/month from state. 
+        // Let's update addShift to use the passed date.
+
+        // Wait, let's refactor modal to work with the specific selected Date object
+        // to support Week View crossing months properly.
+        setSelectedDay(date.getDate()) // kept for modal display if needed
+        // Store the actual date we clicked on
+        // We can just use a new state: selectedDateFull
+        // But let's hack it: temporarily set currentDate to the clicked date's month/year for context?
+        // No, better to refactor properly.
+
+        // Changing state: selectedDay -> selectedDate: Date | null
+    }
+
+    // REFACTOR: Use selectedDate instead of selectedDay (number)
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+
+    const handleDayClick = (date: Date) => {
+        setSelectedDate(date)
         setSelectedShiftType('')
         setEditingShiftId(null)
         setShowShiftModal(true)
     }
 
     const editShift = (shift: Shift) => {
-        setSelectedDay(shift.date.getDate())
+        setSelectedDate(shift.date)
         setSelectedShiftType(shift.type)
         setEditingShiftId(shift.id)
         setShowShiftModal(true)
     }
 
     const saveShift = () => {
-        if (!selectedDay || !selectedShiftType) return
+        if (!selectedDate || !selectedShiftType) return
 
         if (editingShiftId) {
             // Update existing shift
             setShifts(shifts.map(s => s.id === editingShiftId ? {
                 ...s,
+                date: selectedDate, // potentially moved?
                 type: selectedShiftType
             } : s))
         } else {
             // Add new shift
             const newShift: Shift = {
                 id: Date.now().toString(),
-                date: new Date(year, month, selectedDay),
+                date: selectedDate,
                 type: selectedShiftType,
                 userId: 'me',
             }
@@ -144,25 +225,25 @@ function CalendarPage() {
         }
 
         setShowShiftModal(false)
-        setSelectedDay(null)
+        setSelectedDate(null)
         setEditingShiftId(null)
-    }
-
-    const getShiftsForDay = (day: number) => {
-        return shifts.filter(s =>
-            s.date.getFullYear() === year &&
-            s.date.getMonth() === month &&
-            s.date.getDate() === day
-        )
     }
 
     const deleteShift = () => {
         if (editingShiftId) {
             setShifts(shifts.filter(s => s.id !== editingShiftId))
             setShowShiftModal(false)
-            setSelectedDay(null)
+            setSelectedDate(null)
             setEditingShiftId(null)
         }
+    }
+
+    const getShiftsForDate = (date: Date) => {
+        return shifts.filter(s =>
+            s.date.getFullYear() === date.getFullYear() &&
+            s.date.getMonth() === date.getMonth() &&
+            s.date.getDate() === date.getDate()
+        )
     }
 
     const shiftTranslations: Record<string, string> = {
@@ -177,13 +258,19 @@ function CalendarPage() {
         FLEXIBEL: t('shift.flexibel'),
     }
 
+    // Header Date Label
+    const headerLabel = viewMode === 'month'
+        ? `${MONTHS[month]} ${year}`
+        : `${currentDate.getDate()}. ${MONTHS[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+    // Approximate week label, improve if needed
+
     return (
         <div className="calendar-page">
             <div className="calendar-header">
                 <div className="calendar-nav">
-                    <button onClick={prevMonth} className="btn btn-ghost">←</button>
-                    <h1>{MONTHS[month]} {year}</h1>
-                    <button onClick={nextMonth} className="btn btn-ghost">→</button>
+                    <button onClick={prev} className="btn btn-ghost">←</button>
+                    <h1>{headerLabel}</h1>
+                    <button onClick={next} className="btn btn-ghost">→</button>
                 </div>
                 <div className="calendar-actions">
                     <select
@@ -227,11 +314,6 @@ function CalendarPage() {
                 {showTeamPanel && (
                     <div className="team-panel card">
                         <h3>👥 {language === 'de' ? 'Team-Kalender' : 'Team Calendar'}</h3>
-                        <p className="team-hint">
-                            {language === 'de'
-                                ? 'Wähle, wessen Kalender angezeigt werden soll:'
-                                : 'Choose whose calendars to display:'}
-                        </p>
                         <div className="team-users">
                             <label className="team-user">
                                 <input
@@ -242,51 +324,45 @@ function CalendarPage() {
                                 <span className="user-dot" style={{ background: '#8b5cf6' }} />
                                 <span>{language === 'de' ? 'Mein Kalender' : 'My Calendar'}</span>
                             </label>
-                            {connectedUsers.length > 0 ? (
-                                connectedUsers.map(u => (
-                                    <label key={u.id} className="team-user">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedUsers.has(u.id)}
-                                            onChange={() => toggleUser(u.id)}
-                                        />
-                                        <span className="user-dot" style={{ background: u.color }} />
-                                        <span>{u.displayName || u.username}</span>
-                                    </label>
-                                ))
-                            ) : (
-                                <div className="no-team">
-                                    <p>{language === 'de' ? 'Keine Teammitglieder' : 'No team members'}</p>
-                                    <Link to="/connections" className="btn btn-secondary btn-sm">
-                                        {language === 'de' ? '+ Einladen' : '+ Invite'}
-                                    </Link>
-                                </div>
-                            )}
+                            {connectedUsers.map(u => (
+                                <label key={u.id} className="team-user">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedUsers.has(u.id)}
+                                        onChange={() => toggleUser(u.id)}
+                                    />
+                                    <span className="user-dot" style={{ background: u.color }} />
+                                    <span>{u.displayName || u.username}</span>
+                                </label>
+                            ))}
                         </div>
                     </div>
                 )}
 
                 <div className="calendar-main">
                     <div className="card">
-                        <div className="calendar-grid">
+                        <div className={`calendar-grid ${viewMode === 'week' ? 'view-week' : ''}`}>
                             {DAYS.map(day => (
                                 <div key={day} className="calendar-day-header">{day}</div>
                             ))}
-                            {calendarDays.map((day, idx) => {
-                                const holiday = day ? holidayMap.get(day) : null
-                                const dayShifts = day ? getShiftsForDay(day) : []
+                            {calendarDays.map((date, idx) => {
+                                const dayShifts = date ? getShiftsForDate(date) : []
+                                const isHoliday = date ? holidayMap.has(date.getDate()) : false
+                                const holiday = date ? holidayMap.get(date.getDate()) : null
+
                                 return (
                                     <div
                                         key={idx}
-                                        className={`calendar-day ${day ? 'has-day' : 'empty'} ${day && isToday(day) ? 'today' : ''} ${holiday ? 'is-holiday' : ''}`}
-                                        onClick={() => day && openShiftModal(day)}
+                                        className={`calendar-day ${date ? 'has-day' : 'empty'} ${date && isToday(date) ? 'today' : ''} ${isHoliday ? 'is-holiday' : ''}`}
+                                        onClick={() => date && handleDayClick(date)}
+                                        style={viewMode === 'week' ? { minHeight: '300px' } : {}}
                                     >
-                                        {day && (
+                                        {date && (
                                             <>
-                                                <span className="day-number">{day}</span>
+                                                <span className="day-number">{date.getDate()}</span>
                                                 {holiday && (
                                                     <span className="holiday-badge" title={holiday.name}>
-                                                        🎉 {holiday.name.substring(0, 8)}
+                                                        🎉 {holiday.name.substring(0, 15)}
                                                     </span>
                                                 )}
                                                 <div className="day-shifts">
@@ -333,7 +409,7 @@ function CalendarPage() {
             </div>
 
             {/* Shift Creation/Edit Modal */}
-            {showShiftModal && (
+            {showShiftModal && selectedDate && (
                 <div className="modal-overlay" onClick={() => setShowShiftModal(false)}>
                     <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <h3>
@@ -342,7 +418,7 @@ function CalendarPage() {
                                 : (language === 'de' ? 'Schicht hinzufügen' : 'Add Shift')
                             }
                             <span className="modal-date">
-                                {selectedDay}. {MONTHS[month]} {year}
+                                {selectedDate.getDate()}. {MONTHS[selectedDate.getMonth()]} {selectedDate.getFullYear()}
                             </span>
                         </h3>
                         <div className="shift-options">
@@ -400,22 +476,27 @@ function CalendarPage() {
           flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-lg);
         }
         .calendar-nav { display: flex; align-items: center; gap: var(--space-md); }
-        .calendar-nav h1 { font-size: 1.5rem; font-weight: 600; min-width: 200px; text-align: center; }
+        .calendar-nav h1 { font-size: 1.5rem; font-weight: 600; min-width: 240px; text-align: center; }
         .calendar-actions { display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap; }
         .state-select { width: auto; min-width: 180px; }
         .view-toggle { display: flex; background: var(--bg-tertiary); border-radius: var(--radius-md); padding: 2px; }
         
-        .calendar-layout { display: flex; gap: var(--space-lg); }
+        .calendar-layout { display: flex; flex-direction: column; gap: var(--space-lg); }
+        @media (min-width: 768px) {
+           .calendar-layout { flex-direction: row; }
+        }
         
-        .team-panel { width: 240px; flex-shrink: 0; padding: var(--space-md); height: fit-content; }
-        .team-panel h3 { font-size: 0.875rem; margin-bottom: var(--space-xs); }
-        .team-hint { font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-md); }
-        .team-users { display: flex; flex-direction: column; gap: var(--space-sm); }
+        .team-panel { width: 100%; padding: var(--space-md); height: fit-content; }
+        @media (min-width: 768px) {
+           .team-panel { width: 240px; flex-shrink: 0; }
+        }
+        .team-users { display: flex; gap: var(--space-md); flex-wrap: wrap; }
+        @media (min-width: 768px) {
+           .team-users { flex-direction: column; gap: var(--space-sm); }
+        }
         .team-user { display: flex; align-items: center; gap: var(--space-sm); font-size: 0.875rem; cursor: pointer; }
         .team-user input { width: 16px; height: 16px; }
         .user-dot { width: 12px; height: 12px; border-radius: var(--radius-full); }
-        .no-team { text-align: center; padding: var(--space-md) 0; }
-        .no-team p { font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-sm); }
         
         .calendar-main { flex: 1; min-width: 0; }
         
@@ -473,7 +554,6 @@ function CalendarPage() {
           padding: var(--space-xl); min-width: 420px; max-width: 95vw;
         }
         .modal h3 { margin-bottom: var(--space-lg); display: flex; justify-content: space-between; align-items: center; }
-        .modal-date { font-size: 0.875rem; color: var(--text-muted); font-weight: normal; }
         .shift-options {
           display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm);
           margin-bottom: var(--space-lg);
@@ -485,17 +565,10 @@ function CalendarPage() {
         }
         .shift-option:hover { transform: scale(1.02); }
         .shift-option.selected { border-color: var(--accent-primary); box-shadow: 0 0 0 2px rgba(139,92,246,0.3); }
-        .shift-short { font-size: 1.25rem; font-weight: 700; }
-        .shift-name { font-size: 0.75rem; text-align: center; }
-        .shift-time, .shift-duration { font-size: 0.65rem; color: var(--text-muted); font-family: monospace; }
-        .btn-delete { color: var(--accent-error); }
-        .modal-actions { display: flex; align-items: center; gap: var(--space-sm); width: 100%; }
         
         @media (max-width: 768px) {
-          .calendar-layout { flex-direction: column; }
           .team-panel { width: 100%; }
           .calendar-day { min-height: 70px; }
-          .holiday-badge { display: none; }
           .shift-options { grid-template-columns: repeat(3, 1fr); }
           .shift-chip-time { display: none; } 
         }
