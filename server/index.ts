@@ -418,6 +418,293 @@ app.get('/api/holidays/:year/:state', async (req, res) => {
     }
 })
 
+// ============ SHIFTS ============
+
+// Get shifts (optionally filter by range or user)
+app.get('/api/shifts', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { start, end, userId } = req.query
+
+        const where: any = { userId: req.user!.id }
+
+        // If requesting other user's shifts (for team view)
+        if (userId && userId !== 'me') {
+            // Check connections/permissions (simplified for now: allow if connected)
+            where.userId = userId
+            where.visibility = { in: ['CONNECTIONS', 'PUBLIC'] }
+        }
+
+        if (start && end) {
+            where.date = {
+                gte: new Date(start as string),
+                lte: new Date(end as string)
+            }
+        }
+
+        const shifts = await prisma.shift.findMany({
+            where,
+            orderBy: { date: 'asc' }
+        })
+
+        res.json({ shifts })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch shifts' })
+    }
+})
+
+// Create shift
+app.post('/api/shifts', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { date, type, notes } = req.body
+
+        const shift = await prisma.shift.create({
+            data: {
+                userId: req.user!.id,
+                date: new Date(date),
+                shiftType: type,
+                notes,
+                visibility: 'CONNECTIONS'
+            }
+        })
+
+        res.json({ shift })
+    } catch (error) {
+        console.error('Create shift error:', error)
+        res.status(500).json({ error: 'Failed to create shift' })
+    }
+})
+
+// Update shift
+app.put('/api/shifts/:id', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { id } = req.params
+        const { date, type, notes } = req.body
+
+        const existing = await prisma.shift.findUnique({ where: { id } })
+        if (!existing || existing.userId !== req.user!.id) {
+            return res.status(403).json({ error: 'Not authorized' })
+        }
+
+        const shift = await prisma.shift.update({
+            where: { id },
+            data: {
+                date: new Date(date),
+                shiftType: type,
+                notes
+            }
+        })
+
+        res.json({ shift })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update shift' })
+    }
+})
+
+// Delete shift
+app.delete('/api/shifts/:id', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { id } = req.params
+
+        const existing = await prisma.shift.findUnique({ where: { id } })
+        if (!existing || existing.userId !== req.user!.id) {
+            return res.status(403).json({ error: 'Not authorized' })
+        }
+
+        await prisma.shift.delete({ where: { id } })
+        res.json({ success: true })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete shift' })
+    }
+})
+
+// ============ TASKS ============
+
+app.get('/api/tasks', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const tasks = await prisma.task.findMany({
+            where: {
+                OR: [
+                    { createdById: req.user!.id },
+                    { assigneeId: req.user!.id }
+                ]
+            },
+            include: {
+                assignee: { select: { id: true, username: true, displayName: true, avatar: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        })
+        res.json({ tasks })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch tasks' })
+    }
+})
+
+app.post('/api/tasks', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { title, assigneeId, dueDate, recurring } = req.body
+        const task = await prisma.task.create({
+            data: {
+                title,
+                assigneeId: assigneeId === 'me' ? req.user!.id : assigneeId,
+                createdById: req.user!.id,
+                dueDate: dueDate ? new Date(dueDate) : null,
+                recurring
+            },
+            include: {
+                assignee: { select: { id: true, username: true, displayName: true, avatar: true } }
+            }
+        })
+        res.json({ task })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create task' })
+    }
+})
+
+app.put('/api/tasks/:id', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { id } = req.params
+        const { completed, assigneeId } = req.body
+
+        const task = await prisma.task.update({
+            where: { id },
+            data: {
+                ...(completed !== undefined && { completed }),
+                ...(assigneeId !== undefined && { assigneeId: assigneeId === 'me' ? req.user!.id : assigneeId }),
+            },
+            include: {
+                assignee: { select: { id: true, username: true, displayName: true, avatar: true } }
+            }
+        })
+        res.json({ task })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update task' })
+    }
+})
+
+app.delete('/api/tasks/:id', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        await prisma.task.delete({ where: { id: req.params.id } })
+        res.json({ success: true })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete task' })
+    }
+})
+
+// ============ SHOPPING ============
+
+app.get('/api/shopping', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const items = await prisma.shoppingItem.findMany({
+            where: {
+                // Simplified: show items added by user or where user is in shared list
+                // For MVP, just showing items created by user or generally available
+                OR: [
+                    { addedById: req.user!.id },
+                    // In a real app, join with SharedList
+                ]
+            },
+            orderBy: { createdAt: 'desc' }
+        })
+        res.json({ items })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch items' })
+    }
+})
+
+app.post('/api/shopping', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { name, quantity, category, priority } = req.body
+        const item = await prisma.shoppingItem.create({
+            data: {
+                name,
+                quantity: quantity || 1,
+                category,
+                priority,
+                addedById: req.user!.id,
+            }
+        })
+        res.json({ item })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to add item' })
+    }
+})
+
+app.put('/api/shopping/:id', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const { id } = req.params
+        const { purchased } = req.body
+        const item = await prisma.shoppingItem.update({
+            where: { id },
+            data: { purchased }
+        })
+        res.json({ item })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update item' })
+    }
+})
+
+app.delete('/api/shopping/:id', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        await prisma.shoppingItem.delete({ where: { id: req.params.id } })
+        res.json({ success: true })
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete item' })
+    }
+})
+
+// ============ DASHBOARD STATS ============
+
+app.get('/api/dashboard/stats', authMiddleware, async (req: AuthRequest, res) => {
+    try {
+        const userId = req.user!.id
+        const now = new Date()
+        const weekStart = new Date(now)
+        weekStart.setDate(now.getDate() - now.getDay()) // Sunday
+        const weekEnd = new Date(weekStart)
+        weekEnd.setDate(weekStart.getDate() + 7)
+
+        const [
+            shiftsThisWeek,
+            pendingTasks,
+            shoppingItems,
+            vacations
+        ] = await Promise.all([
+            prisma.shift.count({
+                where: {
+                    userId,
+                    date: { gte: weekStart, lt: weekEnd }
+                }
+            }),
+            prisma.task.count({
+                where: {
+                    OR: [{ assigneeId: userId }, { assigneeId: null, createdById: userId }],
+                    completed: false
+                }
+            }),
+            prisma.shoppingItem.count({
+                where: { purchased: false } // Global for MVP
+            }),
+            prisma.vacation.count({
+                where: {
+                    userId,
+                    startDate: { gte: now }
+                }
+            })
+        ])
+
+        res.json({
+            shiftsThisWeek,
+            pendingTasks,
+            shoppingItems,
+            daysUntilVacation: vacations > 0 ? 5 : 0 // Mock calculation for now
+        })
+
+    } catch (error) {
+        console.error('Stats error:', error)
+        res.status(500).json({ error: 'Failed to fetch stats' })
+    }
+})
+
 // Start server
 app.listen(PORT, () => {
     console.log(`🐓 Rooster API running on port ${PORT}`)

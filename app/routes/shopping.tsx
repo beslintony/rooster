@@ -46,21 +46,30 @@ function ShoppingPage() {
     ])
     const [currentListId, setCurrentListId] = useState<string>('personal')
     const [showShareModal, setShowShareModal] = useState(false)
-    const [items, setItems] = useState<ShoppingItem[]>([
-        { id: '1', name: 'Milk', category: '🥛 Dairy', quantity: 2, unit: 'L', purchased: false, priority: 'NORMAL' },
-        { id: '2', name: 'Bread', category: '🍞 Bakery', quantity: 1, purchased: false, priority: 'HIGH' },
-        { id: '3', name: 'Apples', category: '🥬 Produce', quantity: 6, purchased: true, priority: 'LOW' },
-    ])
-    const [sharedItems, setSharedItems] = useState<ShoppingItem[]>([
-        { id: 's1', name: 'Pizza', category: '🥫 Pantry', quantity: 2, purchased: false, priority: 'NORMAL', addedBy: 'Partner' },
-        { id: 's2', name: 'Chips', category: '🥫 Pantry', quantity: 3, purchased: false, priority: 'LOW', addedBy: 'You' },
-    ])
+    const [items, setItems] = useState<ShoppingItem[]>([])
+    const [sharedItems, setSharedItems] = useState<ShoppingItem[]>([])
 
     useEffect(() => {
         if (isAuthenticated) {
             fetchConnections()
+            fetchItems()
         }
     }, [isAuthenticated])
+
+    const fetchItems = async () => {
+        try {
+            const res = await fetch('/api/shopping', { credentials: 'include' })
+            if (res.ok) {
+                const data = await res.json()
+                // Split into personal/shared if needed, or just put all in items for now
+                // Backend integration for Shared Lists is pending in phase 4/5 full scope.
+                // For now, we put everything in 'items' (Personal view) or handle simple logic
+                setItems(data.items)
+            }
+        } catch (error) {
+            console.error('Failed to fetch items:', error)
+        }
+    }
 
     const fetchConnections = async () => {
         try {
@@ -80,31 +89,61 @@ function ShoppingPage() {
     const currentItems = listType === 'personal' ? items : sharedItems
     const setCurrentItems = listType === 'personal' ? setItems : setSharedItems
 
-    const togglePurchased = (id: string) => {
-        setCurrentItems(currentItems.map(item =>
-            item.id === id ? { ...item, purchased: !item.purchased } : item
-        ))
+    const togglePurchased = async (id: string) => {
+        const item = currentItems.find(i => i.id === id)
+        if (!item) return
+
+        try {
+            const res = await fetch(`/api/shopping/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ purchased: !item.purchased })
+            })
+            if (res.ok) {
+                setCurrentItems(currentItems.map(i =>
+                    i.id === id ? { ...i, purchased: !i.purchased } : i
+                ))
+            }
+        } catch (error) {
+            console.error('Failed to update item:', error)
+        }
     }
 
-    const addItem = (e: React.FormEvent) => {
+    const addItem = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!newItem.trim()) return
 
-        const item: ShoppingItem = {
-            id: Date.now().toString(),
-            name: newItem,
-            category: '✨ Other',
-            quantity: 1,
-            purchased: false,
-            priority: 'NORMAL',
-            addedBy: listType === 'shared' ? (user?.displayName || 'You') : undefined,
+        try {
+            const res = await fetch('/api/shopping', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newItem,
+                    quantity: 1,
+                    category: '✨ Other', // Default category
+                    priority: 'NORMAL'
+                })
+            })
+
+            if (res.ok) {
+                const data = await res.json()
+                setCurrentItems([...currentItems, data.item])
+                setNewItem('')
+            }
+        } catch (error) {
+            console.error('Failed to add item:', error)
         }
-        setCurrentItems([...currentItems, item])
-        setNewItem('')
     }
 
-    const deleteItem = (id: string) => {
-        setCurrentItems(currentItems.filter(item => item.id !== id))
+    const deleteItem = async (id: string) => {
+        try {
+            const res = await fetch(`/api/shopping/${id}`, { method: 'DELETE' })
+            if (res.ok) {
+                setCurrentItems(currentItems.filter(item => item.id !== id))
+            }
+        } catch (error) {
+            console.error('Failed to delete item:', error)
+        }
     }
 
     const unpurchasedItems = currentItems.filter(i => !i.purchased)

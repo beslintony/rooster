@@ -14,8 +14,10 @@ type ViewMode = 'month' | 'week'
 interface Shift {
     id: string
     date: Date
-    type: string
+    type: string // Front-end uses 'type', backend uses 'shiftType'. We map it.
+    notes?: string
     userId: string
+    visibility?: string
 }
 
 interface ConnectedUser {
@@ -57,12 +59,33 @@ function CalendarPage() {
         }
     }, [user])
 
-    // Fetch connections
+    // Fetch data
     useEffect(() => {
         if (isAuthenticated) {
             fetchConnectedUsers()
+            fetchShifts()
         }
     }, [isAuthenticated])
+
+    const fetchShifts = async () => {
+        try {
+            // Fetching all shifts for now for simplicity. 
+            // In a real app, we'd filter by range (e.g. current view).
+            const res = await fetch('/api/shifts', { credentials: 'include' })
+            if (res.ok) {
+                const data = await res.json()
+                // Map backend shiftType to frontend type and string date to Date object
+                const parsedShifts = data.shifts.map((s: any) => ({
+                    ...s,
+                    date: new Date(s.date),
+                    type: s.shiftType
+                }))
+                setShifts(parsedShifts)
+            }
+        } catch (error) {
+            console.error('Failed to fetch shifts:', error)
+        }
+    }
 
     const fetchConnectedUsers = async () => {
         try {
@@ -203,38 +226,79 @@ function CalendarPage() {
         setShowShiftModal(true)
     }
 
-    const saveShift = () => {
+    const saveShift = async () => {
         if (!selectedDate || !selectedShiftType) return
 
-        if (editingShiftId) {
-            // Update existing shift
-            setShifts(shifts.map(s => s.id === editingShiftId ? {
-                ...s,
-                date: selectedDate, // potentially moved?
-                type: selectedShiftType
-            } : s))
-        } else {
-            // Add new shift
-            const newShift: Shift = {
-                id: Date.now().toString(),
-                date: selectedDate,
-                type: selectedShiftType,
-                userId: 'me',
+        try {
+            if (editingShiftId) {
+                // Update existing shift
+                const res = await fetch(`/api/shifts/${editingShiftId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: selectedDate,
+                        type: selectedShiftType,
+                        notes: '' // Add notes support later
+                    })
+                })
+
+                if (res.ok) {
+                    const updated = await res.json()
+                    // Update state locally
+                    setShifts(shifts.map(s => s.id === editingShiftId ? {
+                        ...s,
+                        date: new Date(updated.shift.date),
+                        type: updated.shift.shiftType
+                    } : s))
+                }
+            } else {
+                // Add new shift
+                const res = await fetch('/api/shifts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: selectedDate,
+                        type: selectedShiftType,
+                        notes: ''
+                    })
+                })
+
+                if (res.ok) {
+                    const created = await res.json()
+                    const newShift: Shift = {
+                        id: created.shift.id,
+                        date: new Date(created.shift.date),
+                        type: created.shift.shiftType,
+                        userId: 'me', // or created.shift.userId
+                    }
+                    setShifts([...shifts, newShift])
+                }
             }
-            setShifts([...shifts, newShift])
-        }
 
-        setShowShiftModal(false)
-        setSelectedDate(null)
-        setEditingShiftId(null)
-    }
-
-    const deleteShift = () => {
-        if (editingShiftId) {
-            setShifts(shifts.filter(s => s.id !== editingShiftId))
             setShowShiftModal(false)
             setSelectedDate(null)
             setEditingShiftId(null)
+        } catch (error) {
+            console.error('Failed to save shift:', error)
+        }
+    }
+
+    const deleteShift = async () => {
+        if (editingShiftId) {
+            try {
+                const res = await fetch(`/api/shifts/${editingShiftId}`, {
+                    method: 'DELETE'
+                })
+
+                if (res.ok) {
+                    setShifts(shifts.filter(s => s.id !== editingShiftId))
+                    setShowShiftModal(false)
+                    setSelectedDate(null)
+                    setEditingShiftId(null)
+                }
+            } catch (error) {
+                console.error('Failed to delete shift:', error)
+            }
         }
     }
 
@@ -367,7 +431,7 @@ function CalendarPage() {
                                                 )}
                                                 <div className="day-shifts">
                                                     {dayShifts.map(shift => {
-                                                        const shiftInfo = SHIFT_TYPES[shift.type]
+                                                        const shiftInfo = SHIFT_TYPES[shift.type as keyof typeof SHIFT_TYPES]
                                                         const timeLabel = shiftInfo?.startTime
                                                             ? `${shiftInfo.startTime}-${shiftInfo.endTime}`
                                                             : null

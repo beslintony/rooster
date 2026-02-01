@@ -30,18 +30,30 @@ function TasksPage() {
     const [newTask, setNewTask] = useState('')
     const [newAssignee, setNewAssignee] = useState<string>('')
     const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([])
-    const [tasks, setTasks] = useState<Task[]>([
-        { id: '1', title: 'Take out trash', assigneeId: 'me', completed: false, recurring: 'WEEKLY' },
-        { id: '2', title: 'Grocery shopping', assigneeId: '', dueDate: new Date(), completed: false },
-        { id: '3', title: 'Pay electricity bill', dueDate: new Date(Date.now() + 86400000 * 3), completed: false },
-        { id: '4', title: 'Clean bathroom', assigneeId: 'me', completed: true, recurring: 'WEEKLY' },
-    ])
+    const [tasks, setTasks] = useState<Task[]>([])
 
     useEffect(() => {
         if (isAuthenticated) {
             fetchConnections()
+            fetchTasks()
         }
     }, [isAuthenticated])
+
+    const fetchTasks = async () => {
+        try {
+            const res = await fetch('/api/tasks', { credentials: 'include' })
+            if (res.ok) {
+                const data = await res.json()
+                const parsedTasks = data.tasks.map((t: any) => ({
+                    ...t,
+                    dueDate: t.dueDate ? new Date(t.dueDate) : undefined
+                }))
+                setTasks(parsedTasks)
+            }
+        } catch (error) {
+            console.error('Failed to fetch tasks:', error)
+        }
+    }
 
     const fetchConnections = async () => {
         try {
@@ -58,35 +70,74 @@ function TasksPage() {
         }
     }
 
-    const toggleCompleted = (id: string) => {
-        setTasks(tasks.map(task =>
-            task.id === id ? { ...task, completed: !task.completed } : task
-        ))
+    const toggleCompleted = async (id: string) => {
+        const task = tasks.find(t => t.id === id)
+        if (!task) return
+
+        try {
+            const res = await fetch(`/api/tasks/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ completed: !task.completed })
+            })
+            if (res.ok) {
+                setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t))
+            }
+        } catch (error) {
+            console.error('Failed to update task:', error)
+        }
     }
 
-    const addTask = (e: React.FormEvent) => {
+    const addTask = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!newTask.trim()) return
 
-        const task: Task = {
-            id: Date.now().toString(),
-            title: newTask,
-            assigneeId: newAssignee || undefined,
-            completed: false,
+        try {
+            const res = await fetch('/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: newTask,
+                    assigneeId: newAssignee || undefined,
+                    recurring: undefined
+                })
+            })
+
+            if (res.ok) {
+                const data = await res.json()
+                setTasks([data.task, ...tasks])
+                setNewTask('')
+                setNewAssignee('')
+            }
+        } catch (error) {
+            console.error('Failed to create task:', error)
         }
-        setTasks([...tasks, task])
-        setNewTask('')
-        setNewAssignee('')
     }
 
-    const deleteTask = (id: string) => {
-        setTasks(tasks.filter(task => task.id !== id))
+    const deleteTask = async (id: string) => {
+        try {
+            const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
+            if (res.ok) {
+                setTasks(tasks.filter(task => task.id !== id))
+            }
+        } catch (error) {
+            console.error('Failed to delete task:', error)
+        }
     }
 
-    const assignTask = (taskId: string, assigneeId: string) => {
-        setTasks(tasks.map(task =>
-            task.id === taskId ? { ...task, assigneeId: assigneeId || undefined } : task
-        ))
+    const assignTask = async (taskId: string, assigneeId: string) => {
+        try {
+            const res = await fetch(`/api/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assigneeId })
+            })
+            if (res.ok) {
+                setTasks(tasks.map(t => t.id === taskId ? { ...t, assigneeId: assigneeId || undefined } : t))
+            }
+        } catch (error) {
+            console.error('Failed to assign task:', error)
+        }
     }
 
     const pendingTasks = tasks.filter(t => !t.completed)
