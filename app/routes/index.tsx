@@ -17,7 +17,7 @@ function DashboardPage() {
         shiftsThisWeek: 0,
         pendingTasks: 0,
         shoppingItems: 0,
-        daysUntilVacation: 0
+        daysUntilVacation: -1
     })
     const [todayShifts, setTodayShifts] = useState<any[]>([])
     const [quickTasks, setQuickTasks] = useState<any[]>([])
@@ -166,10 +166,21 @@ function DashboardPage() {
                         <h2 className="card-title">🏖️ {t('dashboard.upcomingVacations')}</h2>
                         <Link to="/calendar" className="btn btn-ghost">{t('dashboard.planVacation')}</Link>
                     </div>
-                    <div className="empty-state">
-                        <div className="empty-state-icon">✈️</div>
-                        <p>{t('dashboard.noVacations')}</p>
-                    </div>
+                    {stats.daysUntilVacation >= 0 ? (
+                        <div className="vacation-countdown" style={{ textAlign: 'center', padding: 'var(--space-md)' }}>
+                            <div className="days-number" style={{ fontSize: '3rem', fontWeight: 'bold', color: 'var(--accent-primary)' }}>
+                                {stats.daysUntilVacation}
+                            </div>
+                            <div className="days-label" style={{ color: 'var(--text-secondary)' }}>
+                                {stats.daysUntilVacation === 1 ? (language === 'de' ? 'Tag' : 'Day') : (language === 'de' ? 'Tage' : 'Days')}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="empty-state">
+                            <div className="empty-state-icon">✈️</div>
+                            <p>{t('dashboard.noVacations')}</p>
+                        </div>
+                    )}
                 </div>
             </div>
             <style>{`

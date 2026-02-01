@@ -15,10 +15,13 @@ function RootComponent() {
     return (
         <div className="app">
             <nav className="nav">
-                <div className="nav-brand">
+                <Link to="/" className="nav-brand" style={{ textDecoration: 'none' }}>
                     <span className="nav-logo">🐓</span>
                     <span className="nav-title">Rooster</span>
-                </div>
+                </Link>
+                <button className="mobile-menu-toggle" onClick={() => document.body.classList.toggle('mobile-menu-open')}>
+                    ☰
+                </button>
                 <div className="nav-links">
                     <Link to="/" className="nav-link" activeProps={{ className: 'nav-link active' }}>
                         {t('nav.dashboard')}
@@ -100,9 +103,34 @@ function RootComponent() {
           opacity: 1;
           transform: scale(1.1);
         }
-        .btn-sm {
-          padding: var(--space-xs) var(--space-md);
-          font-size: 0.875rem;
+        .mobile-menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 60px;
+                left: 0;
+                right: 0;
+                background: var(--bg-secondary);
+                flex-direction: column;
+                padding: var(--space-md);
+                border-bottom: 1px solid var(--bg-tertiary);
+                z-index: 100;
+            }
+            body.mobile-menu-open .nav-links {
+                display: flex;
+            }
+            .mobile-menu-toggle {
+                display: block;
+            }
+            .nav-divider { display: none; }
         }
       `}</style>
         </div>

@@ -511,7 +511,7 @@ app.get('/api/shifts', authMiddleware, async (req: AuthRequest, res) => {
 // Create shift
 app.post('/api/shifts', authMiddleware, async (req: AuthRequest, res) => {
     try {
-        const { date, type, notes } = req.body
+        const { date, type, notes, visibility } = req.body
 
         const shift = await prisma.shift.create({
             data: {
@@ -519,7 +519,7 @@ app.post('/api/shifts', authMiddleware, async (req: AuthRequest, res) => {
                 date: new Date(date),
                 shiftType: type,
                 notes,
-                visibility: 'CONNECTIONS'
+                visibility: visibility || 'CONNECTIONS'
             }
         })
 
@@ -534,7 +534,7 @@ app.post('/api/shifts', authMiddleware, async (req: AuthRequest, res) => {
 app.put('/api/shifts/:id', authMiddleware, async (req: AuthRequest, res) => {
     try {
         const { id } = req.params
-        const { date, type, notes } = req.body
+        const { date, type, notes, visibility } = req.body
 
         const existing = await prisma.shift.findUnique({ where: { id } })
         if (!existing || existing.userId !== req.user!.id) {
@@ -546,7 +546,8 @@ app.put('/api/shifts/:id', authMiddleware, async (req: AuthRequest, res) => {
             data: {
                 date: new Date(date),
                 shiftType: type,
-                notes
+                notes,
+                ...(visibility && { visibility })
             }
         })
 
@@ -723,7 +724,7 @@ app.get('/api/dashboard/stats', authMiddleware, async (req: AuthRequest, res) =>
             shiftsThisWeek,
             pendingTasks,
             shoppingItems,
-            vacations
+            nextVacation
         ] = await Promise.all([
             prisma.shift.count({
                 where: {
@@ -740,19 +741,27 @@ app.get('/api/dashboard/stats', authMiddleware, async (req: AuthRequest, res) =>
             prisma.shoppingItem.count({
                 where: { purchased: false } // Global for MVP
             }),
-            prisma.vacation.count({
+            prisma.shift.findFirst({
                 where: {
                     userId,
-                    startDate: { gte: now }
-                }
+                    shiftType: 'URLAUB',
+                    date: { gte: now }
+                },
+                orderBy: { date: 'asc' }
             })
         ])
+
+        let daysUntil = 0
+        if (nextVacation) {
+            const diffTime = nextVacation.date.getTime() - now.getTime()
+            daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        }
 
         res.json({
             shiftsThisWeek,
             pendingTasks,
             shoppingItems,
-            daysUntilVacation: vacations > 0 ? 5 : 0 // Mock calculation for now
+            daysUntilVacation: nextVacation ? daysUntil : -1 // -1 or null to indicate no vacation
         })
 
     } catch (error) {
