@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { SHIFT_TYPES } from '~/lib/shifts'
-import { getHolidaysForMonth, GERMAN_STATES, type GermanState } from '~/lib/holidays'
+import { GERMAN_STATES, type GermanState } from '~/lib/holidays'
 import { useI18n, getMonths, getDays } from '~/lib/i18n'
 import { useAuth } from '~/lib/auth'
 
@@ -40,6 +40,19 @@ interface ConnectedUser {
     color: string
 }
 
+interface Holiday {
+    date: string // YYYY-MM-DD
+    name: string
+    localName: string
+    countryCode: string
+    fixed: boolean
+    global: boolean
+    counties: string[] | null
+    launchYear: number | null
+    types: string[]
+    applicableStates: string[] // 'ALL' or list of state codes like 'NW', 'BY'
+}
+
 const USER_COLORS = [
     '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6', '#f97316'
 ]
@@ -61,6 +74,7 @@ function CalendarPage() {
     const [editingShiftId, setEditingShiftId] = useState<string | null>(null)
     const [shifts, setShifts] = useState<Shift[]>([])
     const [customTemplates, setCustomTemplates] = useState<ShiftTemplate[]>([])
+    const [holidays, setHolidays] = useState<Holiday[]>([])
 
     const DAYS = getDays(language)
     const MONTHS = getMonths(language)
@@ -76,10 +90,34 @@ function CalendarPage() {
     useEffect(() => {
         if (isAuthenticated) {
             fetchConnectedUsers()
+            fetchConnectedUsers()
             fetchShifts()
             fetchTemplates()
+            fetchHolidays()
         }
-    }, [isAuthenticated])
+    }, [isAuthenticated, user?.state, user?.watchedStates, currentDate.getFullYear()]) // Re-fetch on year change
+
+    const fetchHolidays = async () => {
+        if (!user) return
+        try {
+            const states = [user.state || 'NW']
+            if (user.watchedStates && Array.isArray(user.watchedStates)) {
+                user.watchedStates.forEach(s => {
+                    if (!states.includes(s)) states.push(s)
+                })
+            }
+            // Add selected state from dropdown if it differs? 
+            // The dropdown 'selectedState' seems to only be local UI state for calculation in previous version.
+            // Let's stick to user preferences for now.
+
+            const year = currentDate.getFullYear()
+            const res = await fetch(`/api/holidays/batch?year=${year}&states=${states.join(',')}`)
+            if (res.ok) {
+                const data = await res.json()
+                setHolidays(data.holidays)
+            }
+        } catch (e) { console.error('Failed to fetch holidays:', e) }
+    }
 
     const fetchTemplates = async () => {
         try {
@@ -190,8 +228,31 @@ function CalendarPage() {
     // (In week view crossing months this might miss some, but acceptable for now)
     const displayMonth = calendarDays.find(d => d !== null)?.getMonth() ?? month
     const displayYear = calendarDays.find(d => d !== null)?.getFullYear() ?? year
-    const holidays = getHolidaysForMonth(displayYear, displayMonth, selectedState)
-    const holidayMap = new Map(holidays.map(h => [h.date.getDate(), h]))
+
+    // Map holidays to days
+    // holidays array has String dates YYYY-MM-DD. We need to match precise dates.
+    const getHolidayForDate = (date: Date) => {
+        // Construct YYYY-MM-DD from local date to avoid timezone shifts from toISOString()
+        const offset = date.getTimezoneOffset()
+        const localDate = new Date(date.getTime() - (offset * 60 * 1000))
+        const dateStr = localDate.toISOString().split('T')[0]
+
+        // OR simpler manual construction:
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        const localDateStr = `${year}-${month}-${day}`
+
+        // Filter holidays that fall on this date
+        const matches = holidays.filter(h => h.date === localDateStr)
+        if (matches.length === 0) return null
+
+        // Return matching holidays. If multiple, distinct them or join names?
+        // Let's return the most relevant one (National > Primary State > Watched State)
+        // Or all of them? 
+        // For UI, let's just return matches
+        return matches
+    }
 
     // Also check next month if week overlaps? 
     // Let's just stick to simpler month-based holiday fetch for now or fetch for both if split.
@@ -458,8 +519,8 @@ function CalendarPage() {
                             ))}
                             {calendarDays.map((date, idx) => {
                                 const dayShifts = date ? getShiftsForDate(date) : []
-                                const isHoliday = date ? holidayMap.has(date.getDate()) : false
-                                const holiday = date ? holidayMap.get(date.getDate()) : null
+                                const dayHolidays = date ? getHolidayForDate(date) : null
+                                const isHoliday = dayHolidays && dayHolidays.length > 0
 
                                 return (
                                     <div
@@ -471,11 +532,11 @@ function CalendarPage() {
                                         {date && (
                                             <>
                                                 <span className="day-number">{date.getDate()}</span>
-                                                {holiday && (
-                                                    <span className="holiday-badge" title={holiday.name}>
-                                                        🎉 {holiday.name.substring(0, 15)}
+                                                {dayHolidays && dayHolidays.map((h, i) => (
+                                                    <span key={i} className="holiday-badge" title={`${h.name} (${h.applicableStates.join(', ')})`}>
+                                                        {h.applicableStates.includes('ALL') ? '🎉' : '📍'} {h.name.substring(0, 15)}
                                                     </span>
-                                                )}
+                                                ))}
                                                 <div className="day-shifts">
                                                     {dayShifts.map(shift => {
                                                         const shiftInfo = getShiftInfo(shift.type)

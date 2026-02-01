@@ -63,8 +63,13 @@ function ProfilePage() {
     if (user) {
       if (user.displayName) setDisplayName(user.displayName)
       if (user.state) setPrimaryState(user.state as GermanState)
-      // Parse watched states if they are comma-separated string or array
-      // Assuming implementation details, likely need to handle watchedStates
+      // Initialize watched states
+      if (user.watchedStates && Array.isArray(user.watchedStates)) {
+        setWatchedStates(user.watchedStates)
+      } else if (typeof user.watchedStates === 'string') {
+        // Fallback if somehow string comes through
+        setWatchedStates((user.watchedStates as string).split(','))
+      }
     }
   }, [user])
 
@@ -148,11 +153,6 @@ function ProfilePage() {
         updateUser({
           displayName,
           state: primaryState,
-          // watchedStates: watchedStates, // Type mismatch in User interface? array vs string?
-          // User interface in auth.tsx has watchedStates: string[]
-          // Server expects string join? 
-          // Let's assume updateUser handles the partial correctly or we need to match it.
-          // If User.watchedStates is string[], we should pass it as string[]
           watchedStates: watchedStates,
           language,
           theme,
@@ -496,6 +496,17 @@ function ProfilePage() {
         .description-text { 
           font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-md); 
         }
+        .modal-overlay {
+          position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+          display: flex; align-items: center; justify-content: center; z-index: 100;
+        }
+        .modal {
+          background: var(--bg-secondary); border-radius: var(--radius-xl);
+          padding: var(--space-xl); min-width: 420px; max-width: 95vw;
+          box-shadow: var(--shadow-xl);
+        }
+        .modal h3 { margin-bottom: var(--space-lg); font-size: 1.25rem; font-weight: 600; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-md); margin-top: var(--space-xl); }
       `}</style>
     </div >
   )

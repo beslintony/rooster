@@ -18,6 +18,7 @@ model User {
   
   // Preferences
   state           String?   // German state for holidays (e.g., "NW", "BY")
+  watchedStates   String?   // Comma-separated list of states (e.g., "BE,BB")
   language        String    @default("de")
   theme           String    @default("dark")
   occupationType  String?   // NURSE, OFFICE, RETAIL, CUSTOM

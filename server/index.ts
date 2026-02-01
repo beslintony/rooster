@@ -77,6 +77,7 @@ app.post('/api/auth/register', async (req, res) => {
                 displayName: true,
                 avatar: true,
                 state: true,
+                watchedStates: true,
                 language: true,
                 theme: true,
                 occupationType: true,
@@ -97,7 +98,7 @@ app.post('/api/auth/register', async (req, res) => {
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         })
 
-        res.json({ user: { ...user, watchedStates: [] } })
+        res.json({ user: { ...user, watchedStates: user.watchedStates ? user.watchedStates.split(',') : [] } })
     } catch (error) {
         console.error('Register error:', error)
         res.status(500).json({ error: 'Registration failed' })
@@ -123,6 +124,7 @@ app.post('/api/auth/login', async (req, res) => {
                 displayName: true,
                 avatar: true,
                 state: true,
+                watchedStates: true,
                 language: true,
                 theme: true,
                 occupationType: true,
@@ -152,7 +154,7 @@ app.post('/api/auth/login', async (req, res) => {
         })
 
         const { passwordHash, ...userWithoutPassword } = user
-        res.json({ user: { ...userWithoutPassword, watchedStates: [] } })
+        res.json({ user: { ...userWithoutPassword, watchedStates: user.watchedStates ? user.watchedStates.split(',') : [] } })
     } catch (error) {
         console.error('Login error:', error)
         res.status(500).json({ error: 'Login failed' })
@@ -177,6 +179,7 @@ app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res) => {
                 displayName: true,
                 avatar: true,
                 state: true,
+                watchedStates: true,
                 language: true,
                 theme: true,
                 occupationType: true,
@@ -187,7 +190,7 @@ app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res) => {
             return res.status(404).json({ error: 'User not found' })
         }
 
-        res.json({ user: { ...user, watchedStates: [] } })
+        res.json({ user: { ...user, watchedStates: user.watchedStates ? user.watchedStates.split(',') : [] } })
     } catch (error) {
         console.error('Get user error:', error)
         res.status(500).json({ error: 'Failed to get user' })
@@ -206,6 +209,7 @@ app.put('/api/users/profile', authMiddleware, async (req: AuthRequest, res) => {
             data: {
                 ...(displayName !== undefined && { displayName }),
                 ...(state !== undefined && { state }),
+                ...(req.body.watchedStates !== undefined && { watchedStates: Array.isArray(req.body.watchedStates) ? req.body.watchedStates.join(',') : req.body.watchedStates }),
                 ...(language !== undefined && { language }),
                 ...(theme !== undefined && { theme }),
                 ...(occupationType !== undefined && { occupationType }),
@@ -217,13 +221,14 @@ app.put('/api/users/profile', authMiddleware, async (req: AuthRequest, res) => {
                 displayName: true,
                 avatar: true,
                 state: true,
+                watchedStates: true,
                 language: true,
                 theme: true,
                 occupationType: true,
             }
         })
 
-        res.json({ user: { ...user, watchedStates: [] } })
+        res.json({ user: { ...user, watchedStates: user.watchedStates ? user.watchedStates.split(',') : [] } })
     } catch (error) {
         console.error('Update profile error:', error)
         res.status(500).json({ error: 'Failed to update profile' })
@@ -415,6 +420,57 @@ app.get('/api/holidays/:year/:state', async (req, res) => {
     } catch (error) {
         console.error('Holidays fetch error:', error)
         res.status(500).json({ error: 'Failed to fetch holidays' })
+    }
+})
+
+// Batch fetch holidays for multiple states
+app.get('/api/holidays/batch', async (req, res) => {
+    try {
+        const { year, states } = req.query
+        if (!year || !states) return res.status(400).json({ error: 'Year and states required' })
+
+        const stateList = (states as string).split(',')
+        if (stateList.length === 0) return res.json({ holidays: [] })
+
+        // Nager.Date uses ISO country codes, Germany is DE
+        const response = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/DE`)
+
+        if (!response.ok) {
+            return res.status(response.status).json({ error: 'Failed to fetch holidays' })
+        }
+
+        const allHolidays = await response.json()
+
+        const stateMap: Record<string, string> = {
+            'BW': 'DE-BW', 'BY': 'DE-BY', 'BE': 'DE-BE', 'BB': 'DE-BB',
+            'HB': 'DE-HB', 'HH': 'DE-HH', 'HE': 'DE-HE', 'MV': 'DE-MV',
+            'NI': 'DE-NI', 'NW': 'DE-NW', 'RP': 'DE-RP', 'SL': 'DE-SL',
+            'SN': 'DE-SN', 'ST': 'DE-ST', 'SH': 'DE-SH', 'TH': 'DE-TH'
+        }
+
+        // Filter holidays relevant to ANY of the requested states
+        const relevantHolidays = allHolidays.filter((h: any) => {
+            // National holidays
+            if (!h.counties || h.counties.length === 0) return true
+
+            // Holidays for any requested state
+            return stateList.some(s => {
+                const code = stateMap[s.toUpperCase()]
+                return h.counties.includes(code)
+            })
+        }).map((h: any) => ({
+            ...h,
+            // Add a field to indicate which requested states this applies to
+            applicableStates: h.counties
+                ? stateList.filter(s => h.counties.includes(stateMap[s.toUpperCase()]))
+                : ['ALL']
+        }))
+
+        res.json({ holidays: relevantHolidays })
+
+    } catch (error) {
+        console.error('Batch holidays error:', error)
+        res.status(500).json({ error: 'Failed' })
     }
 })
 
