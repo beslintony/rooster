@@ -419,7 +419,7 @@ function ProfilePage() {
       )}
 
       <style>{`
-        .profile-page { max-width: 700px; margin: 0 auto; }
+        .profile-page { max-width: 1000px; margin: 0 auto; padding: 0 var(--space-md); }
         .profile-header { margin-bottom: var(--space-lg); }
         .profile-header h1 { font-size: 1.5rem; }
         .message {
